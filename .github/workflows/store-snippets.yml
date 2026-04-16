@@ -3,8 +3,14 @@
 
 name: Store snippets
 
+# Triggered by satellite repos via the GitHub API.
+# Runs in ci-builds's own context — uses the built-in GITHUB_TOKEN to commit.
+# Satellite repos only need a fine-grained PAT with Actions:write on ci-builds
+# (no Contents:write — they cannot push code directly).
+# Source repo/branch are extracted from a cryptographically signed OIDC token
+# issued by GitHub — they cannot be forged by the caller.
 on:
-  workflow_call:
+  workflow_dispatch:
     inputs:
       snippets:
         description: >
@@ -12,26 +18,91 @@ on:
           Example: {"build-info.json": {"version":"1.0","sha":"abc"}, "tests.json": {"passed":42}}
         required: true
         type: string
-    secrets:
-      ci_cores_token:
-        description: PAT with contents:write on ci-builds
+      oidc_token:
+        description: >
+          OIDC JWT obtained by the satellite workflow via core.getIDToken('<this repo>').
+          Used to cryptographically verify the caller's repository and branch.
         required: true
+        type: string
+
+permissions:
+  contents: write
 
 jobs:
   store:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout ci-builds
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.ci_cores_token }}
+        uses: actions/checkout@v6
+        # GITHUB_TOKEN is used implicitly — no external secret needed
+
+      - name: Install PyJWT
+        run: pip install --quiet "PyJWT[crypto]"
+
+      - name: Verify OIDC token and extract source identity
+        id: verify-oidc
+        env:
+          OIDC_TOKEN: ${{ inputs.oidc_token }}
+        run: |
+          python3 - <<'EOF'
+          import json, os, sys, urllib.request
+          import jwt
+          from jwt.algorithms import RSAAlgorithm
+
+          token = os.environ['OIDC_TOKEN']
+
+          with urllib.request.urlopen(
+              'https://token.actions.githubusercontent.com/.well-known/jwks'
+          ) as r:
+              jwks = json.load(r)
+
+          header = jwt.get_unverified_header(token)
+          key_data = next((k for k in jwks['keys'] if k['kid'] == header['kid']), None)
+          if not key_data:
+              print('::error::No matching key in GitHub JWKS', file=sys.stderr)
+              sys.exit(1)
+
+          try:
+              payload = jwt.decode(
+                  token,
+                  RSAAlgorithm.from_jwk(key_data),
+                  algorithms=['RS256'],
+                  issuer='https://token.actions.githubusercontent.com',
+                  audience='${{ github.repository }}',
+              )
+          except jwt.ExpiredSignatureError:
+              print('::error::OIDC token has expired', file=sys.stderr)
+              sys.exit(1)
+          except jwt.InvalidTokenError as e:
+              print(f'::error::OIDC token invalid: {e}', file=sys.stderr)
+              sys.exit(1)
+
+          repo = payload['repository']
+          ref = payload['ref']
+          for prefix in ('refs/heads/', 'refs/tags/'):
+              if ref.startswith(prefix):
+                  ref = ref[len(prefix):]
+                  break
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              print(f'source_repo={repo}', file=f)
+              print(f'source_branch={ref}', file=f)
+
+          print(f'Verified source: {repo}@{ref}')
+          EOF
+
+      - name: Validate snippets
+        env:
+          SNIPPETS: ${{ inputs.snippets }}
+        run: |
+          echo "$SNIPPETS" | jq -e 'type == "object" and (to_entries | all(.value | type == "object"))' \
+            || { echo "::error::snippets must be a JSON object whose values are JSON objects"; exit 1; }
 
       - name: Write snippet files
         env:
           SNIPPETS: ${{ inputs.snippets }}
-          # Repo/branch come from the calling workflow's context — cannot be forged via inputs
-          SOURCE_REPO: ${{ github.repository }}
-          SOURCE_BRANCH: ${{ github.ref_name }}
+          SOURCE_REPO: ${{ steps.verify-oidc.outputs.source_repo }}
+          SOURCE_BRANCH: ${{ steps.verify-oidc.outputs.source_branch }}
         run: |
           TARGET_DIR="snippets/${SOURCE_REPO//\//-}/${SOURCE_BRANCH}"
           mkdir -p "$TARGET_DIR"
@@ -44,8 +115,8 @@ jobs:
 
       - name: Commit and push (with retry)
         env:
-          SOURCE_REPO: ${{ github.repository }}
-          SOURCE_BRANCH: ${{ github.ref_name }}
+          SOURCE_REPO: ${{ steps.verify-oidc.outputs.source_repo }}
+          SOURCE_BRANCH: ${{ steps.verify-oidc.outputs.source_branch }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
