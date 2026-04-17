@@ -31,6 +31,13 @@ on:
           Ignored when the ref is already a branch.
         required: false
         type: string
+      snippet_type:
+        description: >
+          Type of snippet being stored. Use 'platform' for platform build metadata
+          (stored under platforms/) or 'tool' for tool build metadata (stored under tools/).
+        required: false
+        type: string
+        default: platform
 
 permissions:
   contents: write
@@ -111,17 +118,21 @@ jobs:
       - name: Validate snippets
         env:
           SNIPPETS: ${{ inputs.snippets }}
+          SNIPPET_TYPE: ${{ inputs.snippet_type }}
         run: |
           echo "$SNIPPETS" | jq -e 'type == "object" and (to_entries | all(.value | type == "object"))' \
             || { echo "::error::snippets must be a JSON object whose values are JSON objects"; exit 1; }
+          [[ "$SNIPPET_TYPE" == "platform" || "$SNIPPET_TYPE" == "tool" ]] \
+            || { echo "::error::snippet_type must be 'platform' or 'tool' (got '$SNIPPET_TYPE')"; exit 1; }
 
       - name: Write snippet files
         env:
           SNIPPETS: ${{ inputs.snippets }}
           SOURCE_REPO: ${{ steps.verify-oidc.outputs.source_repo }}
           SOURCE_BRANCH: ${{ steps.verify-oidc.outputs.source_branch }}
+          SNIPPET_TYPE: ${{ inputs.snippet_type }}
         run: |
-          TARGET_DIR="snippets/${SOURCE_REPO//\//-}/${SOURCE_BRANCH}"
+          TARGET_DIR="snippets/${SOURCE_REPO//\//-}/${SOURCE_BRANCH}/${SNIPPET_TYPE}s"
           mkdir -p "$TARGET_DIR"
 
           echo "$SNIPPETS" | jq -r 'to_entries[] | "\(.key)\t\(.value)"' | \
@@ -134,6 +145,7 @@ jobs:
         env:
           SOURCE_REPO: ${{ steps.verify-oidc.outputs.source_repo }}
           SOURCE_BRANCH: ${{ steps.verify-oidc.outputs.source_branch }}
+          SNIPPET_TYPE: ${{ inputs.snippet_type }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -144,7 +156,7 @@ jobs:
             exit 0
           fi
 
-          git commit -m "ci: store snippets from ${SOURCE_REPO}@${SOURCE_BRANCH}"
+          git commit -m "ci: store ${SNIPPET_TYPE}s from ${SOURCE_REPO}@${SOURCE_BRANCH}"
 
           for attempt in 1 2 3 4 5; do
             if git push; then

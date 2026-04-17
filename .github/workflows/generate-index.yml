@@ -71,7 +71,7 @@ jobs:
 
               # Prepare platforms dir and copy JSON snippets
               mkdir -p "package_index/${index_name}/arduino/platforms"
-              cp "${branch_dir}"*.json "package_index/${index_name}/arduino/platforms/" 2>/dev/null || true
+              cp "${branch_dir}platforms/"*.json "package_index/${index_name}/arduino/platforms/" 2>/dev/null || true
 
               # Copy tools from <indexname>_staging if present (mirrors zephyr_staging → zephyr_ci)
               staging_dir="package_index/${index_name}_staging"
@@ -80,6 +80,12 @@ jobs:
                   mkdir -p "../${index_name}/${dir}"
                   cp "${dir}"/*.json "../${index_name}/${dir}/"
                 done)
+              fi
+
+              # Copy tools from snippets (per-branch tools/, higher priority than staging)
+              if [ -d "${branch_dir}tools" ]; then
+                mkdir -p "package_index/${index_name}/arduino/tools"
+                cp "${branch_dir}tools/"*.json "package_index/${index_name}/arduino/tools/" 2>/dev/null || true
               fi
 
               # Generate the final index

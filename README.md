@@ -14,9 +14,13 @@ Central store for CI build-metadata JSON snippets, with automated package index 
 snippets/
   {repo}/
     {branch}/
-      <core-snippet-vxx-main>.json
-      <core-snippet-vxx-contrib>.json
-        ...           ← all snippets from the same repo branch
+      platforms/
+        <core-snippet-vxx-main>.json
+        <core-snippet-vxx-contrib>.json
+        ...           ← platform snippets from the same repo/branch
+      tools/
+        <tool-snippet-vxx>.json
+        ...           ← tool snippets from the same repo/branch
 .github/workflows/
   store-snippets.yml  ← reusable workflow called by satellites
   generate-index.yml ← report generation + Pages deploy
@@ -82,6 +86,8 @@ jobs:
                 // Required only when running from a tag ref; ignored for branch refs.
                 // Snippets will be stored under this branch's folder.
                 base_branch: '${{ github.base_ref || github.ref_name }}',
+                // 'platform' (default) or 'tool'
+                snippet_type: 'platform',
                 snippets: JSON.stringify({
                   'build-info.json': ${{ toJSON(steps.build.outputs.metadata) }},
                   'test-results.json': ${{ toJSON(steps.test.outputs.results) }},
@@ -115,9 +121,10 @@ With `workflow_dispatch`, the workflow runs **inside ci-builds** — ci-builds u
 
 1. Derives the index name: strips the owner and optional `ArduinoCore-` prefix, appends branch + `_ci`  
    e.g. `arduino-ArduinoCore-zephyr / main` → `zephyr_main_ci`
-2. Copies JSON snippets into `<indexname>/arduino/platforms/`
-3. Copies tools from `<indexname>_staging/*/tools/` (if present)
-4. Runs `meld.py --ref-index prod.json pages/package_<indexname>_index.json <indexname>/`
+2. Copies platform JSONs from `snippets/{repo}/{branch}/platforms/` into `<indexname>/arduino/platforms/`
+3. Copies tool JSONs from `snippets/{repo}/{branch}/tools/` into `<indexname>/arduino/tools/`
+4. Copies additional tools from `<indexname>_staging/*/tools/` in the private repo (if present)
+5. Runs `meld.py --ref-index prod.json pages/package_<indexname>_index.json <indexname>/`
 
 Output: `package_<indexname>_index.json` per repo/branch, published to GitHub Pages.
 
