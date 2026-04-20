@@ -22,6 +22,8 @@ snippets/
         tools/
           <tool-snippet-vxx>.json
           ...           ← tool snippets from the same repo/branch
+        metadata/
+          *.json      ← per-build metadata files (one per key in metadata input)
 .github/workflows/
   store-snippets.yml  ← reusable workflow called by satellites
   generate-index.yml ← report generation + Pages deploy
@@ -89,9 +91,19 @@ jobs:
                 base_branch: '${{ github.base_ref || github.ref_name }}',
                 // 'platform' (default) or 'tool'
                 snippet_type: 'platform',
+                // optional: build version
+                version: '${{ steps.build.outputs.version }}',
                 snippets: JSON.stringify({
                   'build-info.json': ${{ toJSON(steps.build.outputs.metadata) }},
                   'test-results.json': ${{ toJSON(steps.test.outputs.results) }},
+                }),
+                // optional: per-build metadata stored under metadata/
+                metadata: JSON.stringify({
+                  'ci.json': {
+                    run_id: '${{ github.run_id }}',
+                    run_url: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}',
+                    sha: '${{ github.sha }}',
+                  },
                 }),
               },
             });

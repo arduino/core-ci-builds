@@ -38,6 +38,19 @@ on:
         required: false
         type: string
         default: platform
+      version:
+        description: >
+          Build version string (e.g. "1.2.3" or a tag name).
+        required: false
+        type: string
+      metadata:
+        description: >
+          JSON object mapping filename to JSON object, storing per-build metadata.
+          Example: {"build.json": {"sha":"abc","url":"https://..."}}
+          Written to snippets/{owner}/{repo}/{branch}/metadata/.
+          Optional — omit if no per-run metadata is needed.
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -119,11 +132,16 @@ jobs:
         env:
           SNIPPETS: ${{ inputs.snippets }}
           SNIPPET_TYPE: ${{ inputs.snippet_type }}
+          METADATA: ${{ inputs.metadata }}
         run: |
           echo "$SNIPPETS" | jq -e 'type == "object" and (to_entries | all(.value | type == "object"))' \
             || { echo "::error::snippets must be a JSON object whose values are JSON objects"; exit 1; }
           [[ "$SNIPPET_TYPE" == "platform" || "$SNIPPET_TYPE" == "tool" ]] \
             || { echo "::error::snippet_type must be 'platform' or 'tool' (got '$SNIPPET_TYPE')"; exit 1; }
+          if [[ -n "$METADATA" ]]; then
+            echo "$METADATA" | jq -e 'type == "object"' \
+              || { echo "::error::metadata must be a JSON object whose values are JSON objects"; exit 1; }
+          fi
 
       - name: Write snippet files
         env:
@@ -141,11 +159,30 @@ jobs:
             echo "Wrote $TARGET_DIR/$filename"
           done
 
+      - name: Write metadata files
+        if: ${{ inputs.metadata != '' }}
+        env:
+          METADATA: ${{ inputs.metadata }}
+          SOURCE_REPO: ${{ steps.verify-oidc.outputs.source_repo }}
+          SOURCE_BRANCH: ${{ steps.verify-oidc.outputs.source_branch }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          TARGET_DIR="snippets/${SOURCE_REPO}/${SOURCE_BRANCH}/metadata"
+          mkdir -p "$TARGET_DIR"
+
+          echo "$METADATA" | jq -r 'to_entries[] | "\(.key)\t\(.value)"' | \
+          while IFS=$'\t' read -r filename content; do
+            echo "$content" | jq '.' > "$TARGET_DIR/$filename"
+            echo "Wrote $TARGET_DIR/$filename"
+          done
+
       - name: Commit and push (with retry)
         env:
           SOURCE_REPO: ${{ steps.verify-oidc.outputs.source_repo }}
           SOURCE_BRANCH: ${{ steps.verify-oidc.outputs.source_branch }}
           SNIPPET_TYPE: ${{ inputs.snippet_type }}
+          VERSION: ${{ inputs.version }}
+          HAS_METADATA: ${{ inputs.metadata != '' }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -156,7 +193,9 @@ jobs:
             exit 0
           fi
 
-          git commit -m "ci: store ${SNIPPET_TYPE}s from ${SOURCE_REPO}@${SOURCE_BRANCH}"
+          MSG="ci: store ${SNIPPET_TYPE}s from ${SOURCE_REPO}@${SOURCE_BRANCH}"
+          [[ -n "$VERSION" ]] && MSG="${MSG} (v${VERSION})"
+          git commit -m "$MSG"
 
           for attempt in 1 2 3 4 5; do
             if git push; then
