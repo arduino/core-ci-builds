@@ -40,8 +40,9 @@ on:
         default: platform
       version:
         description: >
-          Build version string (e.g. "1.2.3" or a tag name).
-        required: false
+          Build version string (e.g. "1.2.3" or "1.2.3-rc1").
+          Only the maj.min.rev portion is used for the storage path.
+        required: true
         type: string
       metadata:
         description: >
@@ -133,6 +134,7 @@ jobs:
           SNIPPETS: ${{ inputs.snippets }}
           SNIPPET_TYPE: ${{ inputs.snippet_type }}
           METADATA: ${{ inputs.metadata }}
+          VERSION: ${{ inputs.version }}
         run: |
           echo "$SNIPPETS" | jq -e 'type == "object" and (to_entries | all(.value | type == "object"))' \
             || { echo "::error::snippets must be a JSON object whose values are JSON objects"; exit 1; }
@@ -142,6 +144,8 @@ jobs:
             echo "$METADATA" | jq -e 'type == "object"' \
               || { echo "::error::metadata must be a JSON object whose values are JSON objects"; exit 1; }
           fi
+          VERSION_SHORT=$(echo "$VERSION" | sed 's/^\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/')
+          echo "VERSION_SHORT=$VERSION_SHORT" >> $GITHUB_ENV
 
       - name: Write snippet files
         env:
@@ -150,7 +154,7 @@ jobs:
           SOURCE_BRANCH: ${{ steps.verify-oidc.outputs.source_branch }}
           SNIPPET_TYPE: ${{ inputs.snippet_type }}
         run: |
-          TARGET_DIR="snippets/${SOURCE_REPO}/${SOURCE_BRANCH}/${SNIPPET_TYPE}s"
+          TARGET_DIR="snippets/${SOURCE_REPO}/${SOURCE_BRANCH}/${VERSION_SHORT}/${SNIPPET_TYPE}s"
           mkdir -p "$TARGET_DIR"
 
           echo "$SNIPPETS" | jq -r 'to_entries[] | "\(.key)\t\(.value)"' | \
@@ -165,7 +169,6 @@ jobs:
           METADATA: ${{ inputs.metadata }}
           SOURCE_REPO: ${{ steps.verify-oidc.outputs.source_repo }}
           SOURCE_BRANCH: ${{ steps.verify-oidc.outputs.source_branch }}
-          VERSION: ${{ inputs.version }}
         run: |
           TARGET_DIR="snippets/${SOURCE_REPO}/${SOURCE_BRANCH}/metadata"
           mkdir -p "$TARGET_DIR"
@@ -193,9 +196,7 @@ jobs:
             exit 0
           fi
 
-          MSG="ci: store ${SNIPPET_TYPE}s from ${SOURCE_REPO}@${SOURCE_BRANCH}"
-          [[ -n "$VERSION" ]] && MSG="${MSG} (v${VERSION})"
-          git commit -m "$MSG"
+          git commit -m "ci: ${SNIPPET_TYPE}s from ${SOURCE_REPO}@${SOURCE_BRANCH} (${VERSION})"
 
           for attempt in 1 2 3 4 5; do
             if git push; then

@@ -66,9 +66,12 @@ jobs:
 
             echo "::group::Building index ${index_name}.json from ${branch_dir}"
 
-            # Prepare platforms dir and copy JSON snippets
+            # Platforms: copy from all version subdirs
             mkdir -p "package_index/${index_name}/${owner}/platforms"
-            cp "${branch_dir}platforms/"*.json "package_index/${index_name}/${owner}/platforms/" 2>/dev/null || true
+            for version_dir in "${branch_dir}"*/; do
+              [ -d "${version_dir}platforms" ] || continue
+              cp "${version_dir}platforms/"*.json "package_index/${index_name}/${owner}/platforms/" 2>/dev/null || true
+            done
 
             # Copy tools from <indexname>_staging if present (mirrors zephyr_staging → zephyr_ci)
             staging_dir="package_index/${index_name}_staging"
@@ -79,10 +82,11 @@ jobs:
               done)
             fi
 
-            # Copy tools from snippets (per-branch tools/, higher priority than staging)
-            if [ -d "${branch_dir}tools" ]; then
+            # Tools: only from the latest version subdir (snippet tools override staging)
+            latest_version_dir=$(ls -d "${branch_dir}"*/ 2>/dev/null | sort -V | tail -1)
+            if [ -n "$latest_version_dir" ] && [ -d "${latest_version_dir}tools" ]; then
               mkdir -p "package_index/${index_name}/${owner}/tools"
-              cp "${branch_dir}tools/"*.json "package_index/${index_name}/${owner}/tools/" 2>/dev/null || true
+              cp "${latest_version_dir}tools/"*.json "package_index/${index_name}/${owner}/tools/" 2>/dev/null || true
             fi
 
             # Generate the final index
