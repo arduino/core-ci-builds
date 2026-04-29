@@ -163,6 +163,17 @@ jobs:
             echo "Wrote $TARGET_DIR/$filename"
           done
 
+      - name: Record full release version
+        if: ${{ env.VERSION_SHORT == inputs.version }}
+        env:
+          SOURCE_REPO: ${{ steps.verify-oidc.outputs.source_repo }}
+          SOURCE_BRANCH: ${{ steps.verify-oidc.outputs.source_branch }}
+        run: |
+          TAG_FILE="snippets/${SOURCE_REPO}/${SOURCE_BRANCH}/tagged-versions"
+          mkdir -p "$(dirname "$TAG_FILE")"
+          echo "$VERSION_SHORT" >> "$TAG_FILE"
+          echo "Recorded full release ${VERSION_SHORT} in tagged-versions"
+
       - name: Write metadata files
         if: ${{ inputs.metadata != '' }}
         env:

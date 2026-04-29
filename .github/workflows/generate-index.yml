@@ -82,12 +82,64 @@ jobs:
               done)
             fi
 
-            # Tools: only from the latest version subdir (snippet tools override staging)
-            latest_version_dir=$(ls -d "${branch_dir}"*/ 2>/dev/null | sort -V | tail -1)
-            if [ -n "$latest_version_dir" ] && [ -d "${latest_version_dir}tools" ]; then
-              mkdir -p "package_index/${index_name}/${owner}/tools"
-              cp "${latest_version_dir}tools/"*.json "package_index/${index_name}/${owner}/tools/" 2>/dev/null || true
+            # Tool selection logic:
+            #
+            # - for a generic run, only include the tools that were added since
+            #   the last release (if any), with the assumption that every
+            #   release includes all the previously built tools.
+            #   built after 1.0.0, but not in an index built for the 1.0.0 release.
+            #
+            # - when tagging a release (max_ver == last_release), as a special
+            #   case, include all tools since the *previous* release (if any),
+            #   because the public index is not yet updated.
+            #
+            # Example: a tool added after 1.0.0 will be included in any index
+            # since that tool's addition up to -and including- the next tagged
+            # release (say. 1.1.0).
+            # No tools added before 1.0.0 will be included in those indexes.
+            #
+            tag_file="${branch_dir}tagged-versions"
+            if [ -f "$tag_file" ]; then
+              last_release=$(tail -1 "$tag_file")
+              prev_release=$(tail -2 "$tag_file" | head -1)  # same as last if only one entry
             fi
+            if [ "$last_release" == "$prev_release" ]; then
+              # zero or one unique entries in the file - include all tools
+              # last_release may be empty if the file is empty
+              prev_release="0.0.0"
+            fi
+
+            version_max() { printf '%s\n' "$@" | sort -V | tail -n 1; }
+            version_gte() { [ "$(version_max "$1" "$2")" = "$1" ]; }
+            version_gt()  { version_gte "$1" "$2" && [ "$1" != "$2" ]; }
+
+            # Find the maximum version dir present
+            versions=$(cd "$branch_dir" && ls -d */ | tr -d '/')
+            max_ver=$(version_max $versions)
+
+            if [ "$max_ver" == "$last_release" ]; then
+              # this is a release run: include the last release's tools and all newer ones
+              include_previous=true
+            else
+              # newer dirs exist beyond the last tag: this is a pre-release run
+              # exclude the last release's tools
+              include_previous=false
+            fi
+
+            mkdir -p "package_index/${index_name}/${owner}/tools"
+            for ver in ${versions}; do
+              version_dir="${branch_dir}/${ver}/"
+              [ -d "${version_dir}tools" ] || continue
+
+              if $include_previous && version_gte "$ver" "$prev_release"; then
+                include=true
+              elif ! $include_previous && version_gt "$ver" "$last_release"; then
+                include=true
+              else
+                include=false
+              fi
+              $include && cp "${version_dir}tools/"*.json "package_index/${index_name}/${owner}/tools/" 2>/dev/null || true
+            done
 
             # Generate the final index
             (cd package_index && scripts/meld.py --ref-index prod.json "../pages/${index_name}.json" "${index_name}/")
