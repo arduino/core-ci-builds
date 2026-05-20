@@ -133,31 +133,8 @@ def collect_prod_entry() -> dict:
 
 
 def fmt_ts(ts: str) -> str:
-    """Format ISO8601 UTC timestamp as 'date (age)'."""
-    try:
-        dt = datetime.datetime.fromisoformat(ts.replace("Z", "+00:00"))
-        today = datetime.datetime.now(datetime.timezone.utc)
-        delta = (today - dt).days
-        if delta == 0:
-            hours = (today - dt).seconds // 3600
-            if hours < 1:
-                age = "just now &#127775;"
-            else:
-                age = f"{hours} hour{'s' if hours > 1 else ''} ago"
-        elif delta < 7:
-            age = f"{delta} day{'s' if delta > 1 else ''} ago"
-        elif delta < 30:
-            weeks = delta // 7
-            age = f"{weeks} week{'s' if weeks > 1 else ''} ago"
-        elif delta < 365:
-            months = delta // 30
-            age = f"{months} month{'s' if months > 1 else ''} ago"
-        else:
-            years = delta // 365
-            age = "over {'a' if years == 1 else years} year{'s' if years > 1 else ''} ago"
-        return f"{ts}<br>({age})"
-    except Exception:
-        return ts or ""
+    """Emit a timestamp span; age is computed client-side by JS."""
+    return f'<span class="ts" data-ts="{ts}">{ts}</span>' if ts else ""
 
 
 def fmt_versions(v: list) -> str:
@@ -251,7 +228,7 @@ if __name__ == "__main__":
     data = collect_ci_entries()
     prod = collect_prod_entry()
     dynamic_content = build_table_html(data, prod, url_prefix)
-    generated_at = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    generated_at = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     template_path = Path(__file__).with_suffix(".template.html")
     with open(template_path, "r", encoding="utf-8") as template_file:

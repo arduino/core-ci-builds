@@ -59,9 +59,43 @@
             {{ FILE_LIST_CONTENT }}
         </div>
 
-        <footer>Last updated: {{ GENERATED_AT }}</footer>
+        <footer>Last updated: <span class="ts" data-ts="{{ GENERATED_AT }}">{{ GENERATED_AT }}</span></footer>
     </div>
     <script>
+        // Age formatting
+        function fmtAge(ts) {
+            if (!ts) return '';
+            const dt = new Date(ts);
+            if (isNaN(dt)) return ts;
+            const deltaMs = Date.now() - dt.getTime();
+            const deltaDays = Math.floor(deltaMs / 86400000);
+            let age;
+            if (deltaDays === 0) {
+                const hours = Math.floor(deltaMs / 3600000);
+                age = hours < 1 ? 'just now \u2728' : `${hours} hour${hours > 1 ? 's' : ''} ago`;
+            } else if (deltaDays < 7) {
+                age = `${deltaDays} day${deltaDays > 1 ? 's' : ''} ago`;
+            } else if (deltaDays < 30) {
+                const weeks = Math.floor(deltaDays / 7);
+                age = `${weeks} week${weeks > 1 ? 's' : ''} ago`;
+            } else if (deltaDays < 365) {
+                const months = Math.floor(deltaDays / 30);
+                age = `${months} month${months > 1 ? 's' : ''} ago`;
+            } else {
+                const years = Math.floor(deltaDays / 365);
+                age = `over ${years === 1 ? 'a' : years} year${years > 1 ? 's' : ''} ago`;
+            }
+            const pad = n => String(n).padStart(2, '0');
+            const display = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+            return `${display}<br>(${age})`;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('span.ts[data-ts]').forEach(el => {
+                el.innerHTML = fmtAge(el.dataset.ts);
+            });
+        });
+
         // Filtering Logic
         document.getElementById('searchInput').addEventListener('input', function(e) {
             const searchWords = e.target.value.toLowerCase().split(/\s+/).filter(word => word.length > 0);
