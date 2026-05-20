@@ -10,7 +10,7 @@
         .search-container { margin-bottom: 20px; }
         #searchInput { width: 100%; padding: 12px 15px; font-size: 16px; border: 1px solid #ced4da; border-radius: 6px; box-sizing: border-box; transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out; }
         #searchInput:focus { border-color: #86b7fe; outline: 0; box-shadow: 0 0 0 0.25rem rgba(13,110,253,.25); }
-        .grid-row { display: grid; grid-template-columns: 1fr 3fr 3fr 2fr; gap: 15px; padding: 10px 15px; align-items: center; }
+        .grid-row { display: grid; grid-template-columns: 3fr 3fr 2fr; gap: 15px; padding: 10px 15px; align-items: center; }
         .table-header { font-weight: 700; background: #e9ecef; border-bottom: 2px solid #dee2e6; border-radius: 4px; }
         .sortable { cursor: pointer; user-select: none; padding: 5px; border-radius: 4px; transition: background 0.1s; }
         .sortable:hover { background: #dee2e6; }
@@ -49,10 +49,9 @@
             <input type="text" id="searchInput" placeholder="Filter by packager, tool, version (e.g. 'ubuntu v1.2.1')...">
         </div>
         <div class="grid-row table-header" id="tableHeader">
-            <span>Kind</span>
-            <span class="sortable" data-col="1">Name ↕</span>
-            <span class="sortable" data-col="2">Latest Version ↕</span>
-            <span class="sortable" data-col="3">Last Modified ↕</span>
+            <span class="sortable" data-col="0">Name ↕</span>
+            <span class="sortable" data-col="1">Latest Version ↕</span>
+            <span class="sortable" data-col="2">Last Modified ↕</span>
         </div>
 
         <div id="emptyMessage">No matching results.</div>

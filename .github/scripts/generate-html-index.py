@@ -187,8 +187,7 @@ def build_inner_html(index, key = None, url_prefix = ""):
     html = f"""
         <details class="{details}">
             <summary class="grid-row summary-row">
-                <span>{badge}</span>
-                <span>{title}</span>
+                <span>{title} {badge}</span>
                 <span>{fmt_versions(index['plat_vers'])}</span>
                 <span>{fmt_ts(index['mtime'])}</span>
             </summary>"""
@@ -202,15 +201,13 @@ def build_inner_html(index, key = None, url_prefix = ""):
         html += f"""
             <details class="sub-group">
                 <summary class="grid-row sub-summary-row">
-                    <span>{badge}</span>
-                    <span><span class="tree-branch">↳</span> {label}</span>
+                    <span><span class="tree-branch">↳</span> {label} {badge}</span>
                     <span>{fmt_versions(versions)}</span>
                     <span>{fmt_ts(versions[0][1])}</span>
                 </summary>"""
         for v in versions:
             html += f"""
                 <div class="grid-row detail-row">
-                    <span></span>
                     <span>{packager}:{name}</span>
                     <span>{v[0]}</span>
                     <span>{fmt_ts(v[1])}</span>
