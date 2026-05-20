@@ -84,10 +84,15 @@
 
                 let itemHasVisible = false;
                 item.querySelectorAll('.sub-group').forEach(sub => {
+                    const headerText = sub.querySelector('.sub-summary-row').textContent.toLowerCase();
+                    const headerMatches = searchWords.every(w => headerText.includes(w));
                     const anyVisible = Array.from(sub.querySelectorAll('.detail-row'))
                                             .some(r => r.style.display !== 'none');
-                    sub.style.display = anyVisible ? '' : 'none';
-                    if (anyVisible) { sub.open = true; itemHasVisible = true; }
+                    const show = anyVisible || headerMatches;
+                    sub.style.display = show ? '' : 'none';
+                    if (show) { itemHasVisible = true; }
+                    // only expand if necessary (only detail rows matched)
+                    sub.open = anyVisible && !headerMatches;
                 });
 
                 item.style.display = itemHasVisible ? 'block' : 'none';
