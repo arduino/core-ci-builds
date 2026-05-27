@@ -10,7 +10,7 @@
         .search-container { margin-bottom: 20px; }
         #searchInput { width: 100%; padding: 12px 15px; font-size: 16px; border: 1px solid #ced4da; border-radius: 6px; box-sizing: border-box; transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out; }
         #searchInput:focus { border-color: #86b7fe; outline: 0; box-shadow: 0 0 0 0.25rem rgba(13,110,253,.25); }
-        .grid-row { display: grid; grid-template-columns: 3fr 3fr 2fr; gap: 15px; padding: 10px 15px; align-items: center; }
+        .grid-row { display: grid; grid-template-columns: 32px 3fr 3fr 2fr; gap: 15px; padding: 10px 15px; align-items: center; }
         .table-header { font-weight: 700; background: #e9ecef; border-bottom: 2px solid #dee2e6; border-radius: 4px; }
         .sortable { cursor: pointer; user-select: none; padding: 5px; border-radius: 4px; transition: background 0.1s; }
         .sortable:hover { background: #dee2e6; }
@@ -46,6 +46,7 @@
         .commit-tooltip .stat-add { color: #3fb950; }
         .commit-tooltip .stat-del { color: #f85149; }
         .commit-tooltip .stat-files { color: #d29922; }
+        .activity-cell { text-align: center; font-size: 1.1em; }
     </style>
 </head>
 <body>
@@ -55,9 +56,10 @@
             <input type="text" id="searchInput" placeholder="Filter by packager, tool, version (e.g. 'ubuntu v1.2.1')...">
         </div>
         <div class="grid-row table-header" id="tableHeader">
-            <span class="sortable" data-col="0">Name ↕</span>
-            <span class="sortable" data-col="1">Latest Version ↕</span>
-            <span class="sortable" data-col="2">Last Modified ↕</span>
+            <span></span>
+            <span class="sortable" data-col="1">Name ↕</span>
+            <span class="sortable" data-col="2">Latest Version ↕</span>
+            <span class="sortable" data-col="3">Last Modified ↕</span>
         </div>
 
         <div id="emptyMessage">No matching results.</div>
@@ -99,6 +101,26 @@
         document.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll('span.ts[data-ts]').forEach(el => {
                 el.innerHTML = fmtAge(el.dataset.ts);
+            });
+
+            // Activity icon in the leftmost cell of branch summary rows
+            function activityIcon(ts) {
+                if (!ts) return '';
+                const age = Date.now() - new Date(ts).getTime();
+                const h = 3600000, d = 86400000;
+                if (age < 24 * h)      return '<span title="New (< 24h)">✨</span> ';
+                if (age < 15 * d)      return '<span title="Active (< 15 days)">🟢</span> ';
+                if (age < 180 * d)     return '<span title="Sleeping (< 6 months)">💤</span> ';
+                return '<span title="Frozen (> 6 months)">🧊</span> ';
+            }
+
+            document.querySelectorAll('.file-item:not(.official-item) > summary.summary-row').forEach(row => {
+                const tsEl = row.children[3]?.querySelector('[data-ts]');
+                const ts = tsEl?.dataset.ts;
+                const iconCell = row.children[0];
+                if (iconCell && ts) {
+                    iconCell.innerHTML = activityIcon(ts);
+                }
             });
         });
 

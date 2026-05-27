@@ -254,6 +254,7 @@ def build_inner_html(index, key = None, url_prefix = ""):
     html = f"""
         <details class="{details}">
             <summary class="grid-row summary-row"{summary_data}>
+                <span class="activity-cell">📜</span>
                 <span>{title} {badge}</span>
                 <span>{fmt_versions(index['plat_vers'], releases)}</span>
                 <span>{fmt_ts(index['mtime'])}</span>
@@ -278,6 +279,7 @@ def build_inner_html(index, key = None, url_prefix = ""):
         html += f"""
             <details class="sub-group">
                 <summary class="grid-row sub-summary-row"{sub_data}>
+                    <span></span>
                     <span><span class="tree-branch">↳</span> {label} {badge}</span>
                     <span>{fmt_versions(all_versions, releases)}</span>
                     <span>{fmt_ts(all_versions[0][1])}</span>
@@ -290,6 +292,7 @@ def build_inner_html(index, key = None, url_prefix = ""):
             row_data = data_attrs(owner, repo, v)
             html += f"""
                 <div class="grid-row detail-row"{row_data}>
+                    <span></span>
                     <span>{names_str}</span>
                     <span>{fmt_version_link(v, releases, owner, repo)}</span>
                     <span>{fmt_ts(ts)}</span>
