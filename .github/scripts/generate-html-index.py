@@ -97,6 +97,14 @@ def parse_srcmap_items(raw_srcmap: dict, timestamps: dict = {}) -> tuple:
     return items, plat_versions, last_ts
 
 
+def load_releases(owner: str, repo: str, branch: str) -> set:
+    """Load tagged-versions file for a branch; return a set of version_short strings."""
+    tag_file = SNIPPETS_DIR / owner / repo / branch / "tagged-versions"
+    if not tag_file.exists():
+        return set()
+    return set(tag_file.read_text().splitlines())
+
+
 def collect_ci_entries() -> dict:
     last_timestamps = load_timestamps()
     data: dict = {}
@@ -115,6 +123,7 @@ def collect_ci_entries() -> dict:
             "link": f"{index_name}.json",
             "mtime": last_ts,
             "items": items,
+            "releases": load_releases(owner, repo, branch),
         }
     return data
 
@@ -131,6 +140,7 @@ def collect_prod_entry() -> dict:
         "link": None,
         "mtime": None,
         "items": items,
+        "releases": set(),
     }
 
 
@@ -139,13 +149,20 @@ def fmt_ts(ts: str) -> str:
     return f'<span class="ts" data-ts="{ts}">{ts}</span>' if ts else ""
 
 
-def fmt_version_link(version: str, owner: str = "", repo: str = "") -> str:
+def tag_pill(version: str, releases: set) -> str:
+    """Return a tag badge if the version matches a tagged-versions entry."""
+    if version in releases:
+        return ' <span class="badge badge-tag">release</span>'
+    return ""
+
+
+def fmt_version_link(version: str, releases: set, owner: str = "", repo: str = "") -> str:
     """Wrap version in a GitHub tree link. +suffix → SHA, otherwise tag."""
     if not owner or not repo:
         return version
     ref = version_to_ref(version)
     url = f"https://github.com/{owner}/{repo}/tree/{ref}"
-    return f'<a href="{url}">{version}</a>'
+    return f'<a href="{url}">{version}</a>{tag_pill(version, releases)}'
 
 
 def version_to_ref(version: str) -> str:
@@ -153,13 +170,13 @@ def version_to_ref(version: str) -> str:
     return version.split("+", 1)[1] if "+" in version else version
 
 
-def fmt_versions(v: list) -> str:
+def fmt_versions(v: list, releases: set) -> str:
     if v:
         last_version = v[0]
         if isinstance(last_version, tuple):
             last_version = last_version[0]
         num_versions = len(v)
-        return f"{last_version}<br>and {num_versions-1} more" if num_versions > 1 else last_version
+        return f"{last_version}{tag_pill(last_version, releases)}<br>and {num_versions-1} more" if num_versions > 1 else last_version
     else:
         return "unknown"
 
@@ -216,6 +233,7 @@ def data_attrs(owner: str, repo: str, version: str) -> str:
 def build_inner_html(index, key = None, url_prefix = ""):
     """Render <details> blocks for a single index entry."""
     # Main item block
+    releases = index['releases']
     if key: # all CI branch entries
         owner, repo, branch = key
         details = 'file-item'
@@ -237,7 +255,7 @@ def build_inner_html(index, key = None, url_prefix = ""):
         <details class="{details}">
             <summary class="grid-row summary-row"{summary_data}>
                 <span>{title} {badge}</span>
-                <span>{fmt_versions(index['plat_vers'])}</span>
+                <span>{fmt_versions(index['plat_vers'], releases)}</span>
                 <span>{fmt_ts(index['mtime'])}</span>
             </summary>"""
 
@@ -261,7 +279,7 @@ def build_inner_html(index, key = None, url_prefix = ""):
             <details class="sub-group">
                 <summary class="grid-row sub-summary-row"{sub_data}>
                     <span><span class="tree-branch">↳</span> {label} {badge}</span>
-                    <span>{fmt_versions(all_versions)}</span>
+                    <span>{fmt_versions(all_versions, releases)}</span>
                     <span>{fmt_ts(all_versions[0][1])}</span>
                 </summary>"""
         # Build per-member version lookup for quick membership check
@@ -273,7 +291,7 @@ def build_inner_html(index, key = None, url_prefix = ""):
             html += f"""
                 <div class="grid-row detail-row"{row_data}>
                     <span>{names_str}</span>
-                    <span>{fmt_version_link(v, owner, repo)}</span>
+                    <span>{fmt_version_link(v, releases, owner, repo)}</span>
                     <span>{fmt_ts(ts)}</span>
                 </div>"""
         html += "</details>\n"
