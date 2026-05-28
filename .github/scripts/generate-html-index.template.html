@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CI Build Artifacts</title>
+    <title>Arduino Core CI Registry</title>
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; background: #f8f9fa; padding: 20px; color: #212529; margin: 0; }
         .container { max-width: 1000px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
@@ -47,13 +47,20 @@
         .commit-tooltip .stat-del { color: #f85149; }
         .commit-tooltip .stat-files { color: #d29922; }
         .activity-cell { text-align: center; font-size: 1.1em; }
+        .page-header { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+        .page-header img { width: 80px; height: 80px; border-radius: 50%; flex-shrink: 0; }
+        .page-header-content { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+        .page-header h2 { margin: 0; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>Artifact Index</h2>
-        <div class="search-container">
-            <input type="text" id="searchInput" placeholder="Filter by packager, tool, version (e.g. 'ubuntu v1.2.1')...">
+        <div class="page-header">
+            <img src="https://avatars.githubusercontent.com/u/4233897?v=4" alt="Arduino CI">
+            <div class="page-header-content">
+                <h2>Core CI Registry</h2>
+                <input type="text" id="searchInput" placeholder="Filter by packager, tool, version (e.g. 'ubuntu v1.2.1')...">
+            </div>
         </div>
         <div class="grid-row table-header" id="tableHeader">
             <span></span>

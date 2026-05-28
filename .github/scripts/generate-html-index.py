@@ -237,7 +237,7 @@ def build_inner_html(index, key = None, url_prefix = ""):
     if key: # all CI branch entries
         owner, repo, branch = key
         details = 'file-item'
-        badge = '<span class="badge badge-branch">branch</span>'
+        badge = '<span class="badge badge-branch">CI branch</span>'
         title = f'<a href="{url_prefix + index['file']}">{owner}/{repo}<br>&nbsp;@ {branch}</a>'
         # Latest platform version for the summary row
         latest_ver = index['plat_vers'][0] if index['plat_vers'] else ""
