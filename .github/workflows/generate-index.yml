@@ -74,7 +74,7 @@ jobs:
             done
 
             # Copy tools from <indexname>_staging if present (mirrors zephyr_staging → zephyr_ci)
-            staging_dir="package_index/${index_name}_staging"
+            staging_dir="package_index/${short_repo}_staging"
             if [ -d "$staging_dir" ]; then
               (cd "$staging_dir" && for dir in */tools; do
                 mkdir -p "../${index_name}/${dir}"
