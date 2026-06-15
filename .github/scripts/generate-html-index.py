@@ -6,6 +6,7 @@
 import argparse
 import collections
 import datetime
+import html
 import json
 import os
 import re
@@ -172,15 +173,41 @@ def version_to_ref(version: str) -> str:
     return version.split("+", 1)[1] if "+" in version else version
 
 
-def fmt_versions(v: list, releases: set) -> str:
-    if v:
-        last_version = v[0]
-        if isinstance(last_version, tuple):
-            last_version = last_version[0]
-        num_versions = len(v)
-        return f"{last_version}{tag_pill(last_version, releases)}<br>and {num_versions-1} more" if num_versions > 1 else last_version
-    else:
+def more_pill(count: int) -> str:
+    return f' <span class="badge badge-more">+{count - 1}</span>' if count > 1 else ""
+
+def commit_snippet(entry: dict) -> str:
+    """Return summary+stats HTML spans for a commit_data entry, or ''."""
+    if not entry:
+        return ""
+    parts = []
+    if entry.get("summary"):
+        parts.append(f'<span class="commit-summary">{entry["summary"]}</span>')
+    add, del_, files = entry.get("add"), entry.get("del"), entry.get("files")
+    if add is not None or del_ is not None:
+        add_s = f'+{add}' if add is not None else '?'
+        del_s = f'-{del_}' if del_ is not None else '?'
+        files_part = (f', <span class="stat-files">{files} file{"s" if files != 1 else ""}</span>'
+                      if files is not None else '')
+        parts.append(f'<span class="commit-stats-inline">'
+                     f'<span class="stat-add">{add_s}</span> '
+                     f'<span class="stat-del">{del_s}</span> lines{files_part}</span>')
+    return "".join(parts)
+
+
+def version_cell(versions: list, releases: set, owner: str, repo: str,
+                 commit_data: dict) -> str:
+    """Build full version cell: latest-link + more-pill + commit-snippet."""
+    if not versions:
         return "unknown"
+    latest = versions[0]
+    if isinstance(latest, tuple):
+        latest = latest[0]
+    entry = (commit_data.get(f"{owner}/{repo}/{version_to_ref(latest)}", {})
+             if owner and repo and latest else {})
+    return (fmt_version_link(latest, releases, owner, repo)
+            + more_pill(len(versions))
+            + commit_snippet(entry))
 
 
 def group_items(items: dict) -> list:
@@ -225,14 +252,7 @@ def group_items(items: dict) -> list:
     return result
 
 
-def data_attrs(owner: str, repo: str, version: str) -> str:
-    """Build data-owner/repo/ref attribute string for a grid row."""
-    if not owner or not repo:
-        return ""
-    return f' data-owner="{owner}" data-repo="{repo}" data-ref="{version_to_ref(version)}"'
-
-
-def build_inner_html(index, key = None, url_prefix = ""):
+def build_inner_html(index, key = None, url_prefix = "", commit_data: dict = {}):
     """Render <details> blocks for a single index entry."""
     # Main item block
     releases = index['releases']
@@ -241,24 +261,19 @@ def build_inner_html(index, key = None, url_prefix = ""):
         details = 'file-item'
         badge = '<span class="badge badge-branch">CI branch</span>'
         title = f'<a href="{url_prefix + index['file']}">{owner}/{repo}<br>&nbsp;@ {branch}</a>'
-        # Latest platform version for the summary row
-        latest_ver = index['plat_vers'][0] if index['plat_vers'] else ""
-        if isinstance(latest_ver, tuple):
-            latest_ver = latest_ver[0]
-        summary_data = data_attrs(owner, repo, latest_ver)
     else: # prod entry
         owner, repo = "", ""
         details = 'file-item official-item'
         badge = '<span class="badge badge-official">official</span>'
         title = 'package_index.json'
-        summary_data = ""
 
-    html = f"""
+    plat_vers = index['plat_vers']
+    out = f"""
         <details class="{details}">
-            <summary class="grid-row summary-row"{summary_data}>
+            <summary class="grid-row summary-row">
                 <span class="activity-cell">📜</span>
                 <span>{title} {badge}</span>
-                <span>{fmt_versions(index['plat_vers'], releases)}</span>
+                <span>{version_cell(plat_vers, releases, owner, repo, commit_data)}</span>
                 <span>{fmt_ts(index['mtime'])}</span>
             </summary>"""
 
@@ -276,14 +291,12 @@ def build_inner_html(index, key = None, url_prefix = ""):
                     all_versions_set[v] = ts
         all_versions = sort_by_version([(v, ts) for v, ts in all_versions_set.items()])
 
-        sub_latest = all_versions[0][0] if all_versions else ""
-        sub_data = data_attrs(owner, repo, sub_latest)
-        html += f"""
+        out += f"""
             <details class="sub-group">
-                <summary class="grid-row sub-summary-row"{sub_data}>
+                <summary class="grid-row sub-summary-row">
                     <span></span>
                     <span><span class="tree-branch">↳</span> {label} {badge}</span>
-                    <span>{fmt_versions(all_versions, releases)}</span>
+                    <span>{version_cell(all_versions, releases, owner, repo, commit_data)}</span>
                     <span>{fmt_ts(all_versions[0][1])}</span>
                 </summary>"""
         # Build per-member version lookup for quick membership check
@@ -291,26 +304,50 @@ def build_inner_html(index, key = None, url_prefix = ""):
         for v, ts in all_versions:
             present = [m for m in members if v in member_ver_sets[m]]
             names_str = ", ".join(f"{p}:{n}" for _, p, n in present)
-            row_data = data_attrs(owner, repo, v)
-            html += f"""
-                <div class="grid-row detail-row"{row_data}>
+            entry = commit_data.get(f"{owner}/{repo}/{version_to_ref(v)}", {}) if owner and repo else {}
+            out += f"""
+                <div class="grid-row detail-row">
                     <span></span>
                     <span>{names_str}</span>
-                    <span>{fmt_version_link(v, releases, owner, repo)}</span>
+                    <span>{fmt_version_link(v, releases, owner, repo)}{commit_snippet(entry)}</span>
                     <span>{fmt_ts(ts)}</span>
                 </div>"""
-        html += "</details>\n"
+        out += "</details>\n"
 
-    html += "</details>\n"
-    return html
+    out += "</details>\n"
+    return out
 
 
-def build_table_html(data: dict, prod: dict, url_prefix: str) -> str:
+def commit_summary(message: str, owner: str, repo: str) -> str:
+    """Return a ready-to-embed HTML snippet for a commit message.
+
+    Merge commits (first word == "Merge"):
+      text = 3rd line (PR title), HTML-escaped, followed by a PR link
+             built from the 4th word of line 1 (e.g. "#123").
+    Regular commits:
+      text = HTML-escaped 1st line.
+    """
+    lines = message.splitlines()
+    first_line = lines[0].strip() if lines else ""
+    words = first_line.split()
+    if words and words[0] == "Merge" and len(words) > 3:
+        pr_word = words[3]
+        pr_number = pr_word.lstrip("#") if pr_word.startswith("#") else None
+        text = lines[2].strip() if len(lines) > 2 else first_line
+        esc = html.escape(text)
+        if pr_number:
+            pr_url = f"https://github.com/{owner}/{repo}/pull/{pr_number}"
+            return f'{esc} (<a href="{pr_url}" target="_blank">#{pr_number}</a>)'
+        return esc
+    return html.escape(first_line)
+
+
+def build_table_html(data: dict, prod: dict, url_prefix: str, commit_data: dict = {}) -> str:
     """Render all table entries as file-item blocks."""
     html_output = ""
     for key, index in data.items():
-        html_output += build_inner_html(index, key, url_prefix)
-    html_output += build_inner_html(prod, "")
+        html_output += build_inner_html(index, key, url_prefix, commit_data)
+    html_output += build_inner_html(prod, "", url_prefix, commit_data)
     return html_output
 
 
@@ -383,11 +420,12 @@ query {{
             for i, ref in enumerate(chunk):
                 node = repo_data.get(f"s{i}") or {}
                 key = f"{owner}/{repo}/{ref}"
+                msg = node.get("message", "")
                 result[key] = {
-                    "msg": node.get("message", ""),
-                    "add": node.get("additions"),
-                    "del": node.get("deletions"),
-                    "files": node.get("changedFilesIfAvailable"),
+                    "add":     node.get("additions"),
+                    "del":     node.get("deletions"),
+                    "files":   node.get("changedFilesIfAvailable"),
+                    "summary": commit_summary(msg, owner, repo) if msg else "",
                 }
 
     return result
@@ -417,13 +455,13 @@ if __name__ == "__main__":
 
     data = collect_ci_entries()
     prod = collect_prod_entry()
-    dynamic_content = build_table_html(data, prod, url_prefix)
     generated_at = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     token = args.github_token or os.environ.get("GITHUB_TOKEN", "")
     refs = collect_commit_refs(data)
     commit_data = query_commit_data(refs, token)
-    commit_data_json = json.dumps(commit_data, ensure_ascii=False)
+
+    dynamic_content = build_table_html(data, prod, url_prefix, commit_data)
 
     template_path = Path(__file__).with_suffix(".template.html")
     with open(template_path, "r", encoding="utf-8") as template_file:
@@ -431,7 +469,6 @@ if __name__ == "__main__":
 
     final_html = (template_content
                   .replace("{{ FILE_LIST_CONTENT }}", dynamic_content)
-                  .replace("{{ GENERATED_AT }}", generated_at)
-                  .replace("{{ COMMIT_DATA_JSON }}", commit_data_json))
+                  .replace("{{ GENERATED_AT }}", generated_at))
     with open(OUTPUT_DIR / "index.html", "w", encoding="utf-8") as output_file:
         output_file.write(final_html)
