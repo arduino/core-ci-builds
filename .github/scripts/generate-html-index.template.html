@@ -77,6 +77,8 @@
         <footer>Last updated: <span class="ts" data-ts="{{ GENERATED_AT }}">{{ GENERATED_AT }}</span></footer>
     </div>
     <script>
+        const COMMIT_DATA = {{ COMMIT_DATA_JSON }};
+
         // Age formatting
         function fmtAge(ts) {
             if (!ts) return '';
@@ -213,7 +215,6 @@
         });
 
         // Commit tooltip on hover
-        const commitCache = {};
         let tooltipEl = null;
 
         function showTooltip(row, html) {
@@ -243,34 +244,24 @@
             return null;
         }
 
-        document.getElementById('fileList').addEventListener('mouseover', async (e) => {
+        function buildTooltipHtml(entry) {
+            if (!entry || !entry.msg) return null;
+            const msg = entry.msg.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            const add = entry.add ?? '?';
+            const del = entry.del ?? '?';
+            const files = entry.files ?? '?';
+            const stats = `<span class="stat-add">+${add}</span> <span class="stat-del">-${del}</span> lines over <span class="stat-files">${files} file${files !== 1 ? 's' : ''}</span>`;
+            return `${msg}\n<div class="commit-stats">${stats}</div>`;
+        }
+
+        document.getElementById('fileList').addEventListener('mouseover', (e) => {
             const row = e.target.closest('.grid-row');
             if (!row || row.classList.contains('table-header')) return;
             const info = parseTreeUrl(row);
             if (!info) return;
-
             const cacheKey = `${info.owner}/${info.repo}/${info.ref}`;
-            if (commitCache[cacheKey]) {
-                showTooltip(row, commitCache[cacheKey]);
-                return;
-            }
-            showTooltip(row, 'Loading…');
-            try {
-                const resp = await fetch(`https://api.github.com/repos/${info.owner}/${info.repo}/commits/${info.ref}`);
-                if (!resp.ok) throw new Error(resp.status);
-                const data = await resp.json();
-                const msg = data.commit.message.replace(/</g,'&lt;').replace(/>/g,'&gt;');
-                const add = data.stats?.additions ?? '?';
-                const del = data.stats?.deletions ?? '?';
-                const files = data.files?.length ?? '?';
-                const stats = `<span class="stat-add">+${add}</span> <span class="stat-del">-${del}</span> lines over <span class="stat-files">${files} file${files !== 1 ? 's' : ''}</span>`;
-                const html = `${msg}\n<div class="commit-stats">${stats}</div>`;
-                commitCache[cacheKey] = html;
-                if (row.matches(':hover')) showTooltip(row, html);
-            } catch (err) {
-                const html = `Could not load commit info`;
-                if (row.matches(':hover')) showTooltip(row, html);
-            }
+            const html = buildTooltipHtml(COMMIT_DATA[cacheKey]);
+            if (html) showTooltip(row, html);
         });
 
         document.getElementById('fileList').addEventListener('mouseout', (e) => {

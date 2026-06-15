@@ -152,6 +152,8 @@ jobs:
           cp package_index/prod.json.srcmap pages/prod.json.srcmap
 
       - name: Generate index.html
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 .github/scripts/generate-html-index.py --owner-repo ${{ github.repository }}
           rm pages/*.srcmap # not needed in the published folder

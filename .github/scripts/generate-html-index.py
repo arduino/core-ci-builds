@@ -7,9 +7,11 @@ import argparse
 import collections
 import datetime
 import json
+import os
 import re
 import semver
 import subprocess
+import urllib.request
 
 from packaging_legacy.version import parse as legacy_parse
 from pathlib import Path
@@ -312,12 +314,92 @@ def build_table_html(data: dict, prod: dict, url_prefix: str) -> str:
     return html_output
 
 
+def collect_commit_refs(data: dict) -> set:
+    """Return all (owner, repo, ref) triples referenced by any row in the index."""
+    refs = set()
+    for (owner, repo, branch), index in data.items():
+        for versions in index['items'].values():
+            for v, _ in versions:
+                refs.add((owner, repo, version_to_ref(v)))
+    return refs
+
+
+_GRAPHQL_FRAGMENT = "fragment C on Commit { message additions deletions changedFilesIfAvailable }"
+_GRAPHQL_URL = "https://api.github.com/graphql"
+_GRAPHQL_PAGE = 50  # aliases per repository block
+
+
+def query_commit_data(refs: set, token: str) -> dict:
+    """Fetch commit details for all refs via batched GraphQL queries.
+
+    Returns dict mapping "owner/repo/ref" → {msg, add, del, files}.
+    Falls back gracefully on errors (returns empty dict entry).
+    """
+    if not token:
+        print("Warning: GITHUB_TOKEN not set; skipping commit data pre-fetch.", flush=True)
+        return {}
+
+    # Group refs by (owner, repo)
+    by_repo: dict = collections.defaultdict(list)
+    for owner, repo, ref in refs:
+        by_repo[(owner, repo)].append(ref)
+
+    result: dict = {}
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+
+    for (owner, repo), repo_refs in by_repo.items():
+        # Paginate in chunks of _GRAPHQL_PAGE
+        for chunk_start in range(0, len(repo_refs), _GRAPHQL_PAGE):
+            chunk = repo_refs[chunk_start:chunk_start + _GRAPHQL_PAGE]
+            aliases = "\n    ".join(
+                f's{i}: object(expression: "{ref}") {{ ...C }}'
+                for i, ref in enumerate(chunk)
+            )
+            query = f"""
+query {{
+  repo: repository(owner: "{owner}", name: "{repo}") {{
+    {aliases}
+  }}
+}}
+{_GRAPHQL_FRAGMENT}
+"""
+            payload = json.dumps({"query": query}).encode()
+            req = urllib.request.Request(_GRAPHQL_URL, data=payload, headers=headers, method="POST")
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    body = json.loads(resp.read())
+            except Exception as e:
+                print(f"Warning: GraphQL request failed for {owner}/{repo}: {e}", flush=True)
+                continue
+
+            if "errors" in body:
+                print(f"Warning: GraphQL errors for {owner}/{repo}: {body['errors']}", flush=True)
+
+            repo_data = (body.get("data") or {}).get("repo") or {}
+            for i, ref in enumerate(chunk):
+                node = repo_data.get(f"s{i}") or {}
+                key = f"{owner}/{repo}/{ref}"
+                result[key] = {
+                    "msg": node.get("message", ""),
+                    "add": node.get("additions"),
+                    "del": node.get("deletions"),
+                    "files": node.get("changedFilesIfAvailable"),
+                }
+
+    return result
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Generate index.html listing all CI package indexes."
     )
     parser.add_argument("--output-dir", help="Path to directory with generated files")
     parser.add_argument("--owner-repo", help="GitHub owner/repo for base URL (e.g. arduino/core-ci-builds)")
+    parser.add_argument("--github-token", help="GitHub token for GraphQL pre-fetch (falls back to GITHUB_TOKEN env var)", default="")
     args = parser.parse_args()
     if args.output_dir:
         OUTPUT_DIR = Path(args.output_dir)
@@ -338,12 +420,18 @@ if __name__ == "__main__":
     dynamic_content = build_table_html(data, prod, url_prefix)
     generated_at = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    token = args.github_token or os.environ.get("GITHUB_TOKEN", "")
+    refs = collect_commit_refs(data)
+    commit_data = query_commit_data(refs, token)
+    commit_data_json = json.dumps(commit_data, ensure_ascii=False)
+
     template_path = Path(__file__).with_suffix(".template.html")
     with open(template_path, "r", encoding="utf-8") as template_file:
         template_content = template_file.read()
 
     final_html = (template_content
                   .replace("{{ FILE_LIST_CONTENT }}", dynamic_content)
-                  .replace("{{ GENERATED_AT }}", generated_at))
+                  .replace("{{ GENERATED_AT }}", generated_at)
+                  .replace("{{ COMMIT_DATA_JSON }}", commit_data_json))
     with open(OUTPUT_DIR / "index.html", "w", encoding="utf-8") as output_file:
         output_file.write(final_html)
