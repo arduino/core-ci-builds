@@ -30,10 +30,16 @@ def get_index_name(owner: str, repo: str, branch: str) -> str:
     return f"{owner}_{short_repo}_{branch}_ci"
 
 
-def load_timestamps() -> dict:
-    """Run last_modified.sh and parse its output; return filepath → ISO8601 dict."""
+def load_timestamps() -> tuple:
+    """Run last_modified.sh and parse its output.
+
+    Returns (ts, snippet_paths) where:
+      ts: transformed_path → ISO8601 timestamp
+      snippet_paths: transformed_path → original snippets/... path
+    """
     #try:
     ts: dict = {}
+    snippet_paths: dict = {}
     output = subprocess.check_output([SCRIPTS_DIR / "last_modified.sh"], text=True)
     for line in output.splitlines():
         parts = line.split("\t", 1)
@@ -41,14 +47,16 @@ def load_timestamps() -> dict:
             date_str, filepath = parts
             file_parts = filepath.split("/")
             if len(file_parts) > 5 and file_parts[0] == "snippets":
+                original = filepath
                 owner, repo, branch, version = file_parts[1:5]
                 src_stem = '/'.join(file_parts[:5])
                 dst_stem = f'{get_index_name(owner, repo, branch)}/{owner}'
                 filepath = filepath.replace(src_stem, dst_stem)
                 ts[filepath] = date_str
-    return ts
+                snippet_paths[filepath] = original
+    return ts, snippet_paths
     #except Exception:
-    #    return {}
+    #    return {}, {}
 
 
 def load_srcmap(index_name: str) -> dict:
@@ -80,27 +88,31 @@ def sort_by_version(l: list) -> list:
             return sorted(l, key=lambda x: (legacy_parse(x[0]), x[1]), reverse=True)
 
 
-def parse_srcmap_items(raw_srcmap: dict, timestamps: dict = {}) -> tuple:
-    """Parse a srcmap dict into (items, plat_versions, last_ts).
+def parse_srcmap_items(raw_srcmap: dict, timestamps: dict = {}, snippet_paths: dict = {}) -> tuple:
+    """Parse a srcmap dict into (items, plat_versions, last_ts, srcfiles).
 
     items is a defaultdict mapping (kind, packager, name) → [(version, ts), ...]
-    timestamps maps srcfile path → ISO8601 string; absent entries yield "".
+    srcfiles maps (kind, packager, name, version) → original snippets/... path (or "")
+    timestamps maps transformed path → ISO8601 string; absent entries yield "".
+    snippet_paths maps transformed path → original snippets/... path.
     """
     items = collections.defaultdict(list)
     plat_versions = dict()
     last_ts = ""
+    srcfiles: dict = {}
     for kind in "platforms", "tools":
         for what, srcfile in raw_srcmap.get(kind, {}).items():
             packager, name, version = what.split(":", 2)
             ts = timestamps.get(srcfile, "")
             items[(kind, packager, name)].append((version, ts))
+            srcfiles[(kind, packager, name, version)] = snippet_paths.get(srcfile, "")
             last_ts = max(last_ts, ts)
             if kind == "platforms":
                 plat_ts = plat_versions.get(version, "")
                 if ts > plat_ts:
                     plat_versions[version] = ts
     plat_versions = set(plat_versions.items())
-    return items, plat_versions, last_ts
+    return items, plat_versions, last_ts, srcfiles
 
 
 def load_releases(owner: str, repo: str, branch: str) -> set:
@@ -112,7 +124,7 @@ def load_releases(owner: str, repo: str, branch: str) -> set:
 
 
 def collect_ci_entries() -> dict:
-    last_timestamps = load_timestamps()
+    last_timestamps, snippet_paths = load_timestamps()
     data: dict = {}
     for branch_dir in sorted(SNIPPETS_DIR.glob("*/*/*/")):
         parts = branch_dir.relative_to(SNIPPETS_DIR).parts
@@ -121,7 +133,7 @@ def collect_ci_entries() -> dict:
         owner, repo, branch = parts
         index_name = f"package_{get_index_name(owner, repo, branch)}_index.json"
         raw_srcmap = load_srcmap(index_name)
-        items, plat_versions, last_ts = parse_srcmap_items(raw_srcmap, last_timestamps)
+        items, plat_versions, last_ts, srcfiles = parse_srcmap_items(raw_srcmap, last_timestamps, snippet_paths)
 
         data[(owner, repo, branch)] = {
             "file": index_name,
@@ -129,6 +141,7 @@ def collect_ci_entries() -> dict:
             "link": f"{index_name}.json",
             "mtime": last_ts,
             "items": items,
+            "srcfiles": srcfiles,
             "releases": load_releases(owner, repo, branch),
         }
     return data
@@ -139,13 +152,14 @@ def collect_prod_entry() -> dict:
     raw_srcmap = load_srcmap("prod.json")
     if not raw_srcmap:
         return {}
-    items, _, _ = parse_srcmap_items(raw_srcmap)
+    items, _, _, srcfiles = parse_srcmap_items(raw_srcmap)
     return {
         "file": None,
         "plat_vers": [""], # empty column
         "link": None,
         "mtime": None,
         "items": items,
+        "srcfiles": srcfiles,
         "releases": set(),
     }
 
@@ -263,7 +277,7 @@ def group_items(items: dict) -> list:
     return result
 
 
-def build_inner_html(index, key = None, url_prefix = "", commit_data: dict = {}):
+def build_inner_html(index, key = None, url_prefix = "", commit_data: dict = {}, gh_repo: str = ""):
     """Render <details> blocks for a single index entry."""
     # Main item block
     releases = index['releases']
@@ -317,14 +331,28 @@ def build_inner_html(index, key = None, url_prefix = "", commit_data: dict = {})
 
         # Build per-member version lookup for quick membership check
         member_ver_sets = {m: {v for v, _ in vers} for m, vers in member_versions.items()}
+        srcfiles = index.get('srcfiles', {})
+
         for v, ts in all_versions:
             present = [m for m in members if v in member_ver_sets[m]]
-            names_str = ", ".join(f"{p}:{n}" for _, p, n in present)
+            names_parts = []
+            for kind_, packager, name in present:
+                snippet_path = srcfiles.get((kind_, packager, name, v), "")
+                label = f"{packager}:{name}"
+                if snippet_path and gh_repo:
+                    href = f"https://github.com/{gh_repo}/raw/main/{snippet_path}"
+                    kind_ = kind_[:-1]  # drop plural 's'
+                    names_parts.append(f'<a href="{href}">{label}</a>')
+                    names_pill = f' <span class="badge badge-{kind_}">{kind_} snippet</span>'
+                else:
+                    names_parts.append(label)
+                    names_pill = ""
+            names_str = ", ".join(names_parts)
             entry = commit_data.get(f"{owner}/{repo}/{version_to_ref(v)}", {}) if rel_versions is not None else {}
             out += f"""
                 <div class="grid-row detail-row">
                     <span></span>
-                    <span>{names_str}</span>
+                    <span>{names_str}{names_pill}</span>
                     <span>{fmt_version_link(v, ts, rel_versions, owner, repo)}{commit_snippet(entry)}</span>
                     <span>{fmt_ts(ts)}</span>
                 </div>"""
@@ -352,12 +380,12 @@ def commit_summary(pr: dict, message: str) -> str:
     return html.escape(first_line)
 
 
-def build_table_html(data: dict, prod: dict, url_prefix: str, commit_data: dict = {}) -> str:
+def build_table_html(data: dict, prod: dict, url_prefix: str, commit_data: dict = {}, gh_repo: str = "") -> str:
     """Render all table entries as file-item blocks."""
     html_output = ""
     for key, index in data.items():
-        html_output += build_inner_html(index, key, url_prefix, commit_data)
-    html_output += build_inner_html(prod, "", url_prefix, commit_data)
+        html_output += build_inner_html(index, key, url_prefix, commit_data, gh_repo)
+    html_output += build_inner_html(prod, "", url_prefix, commit_data, gh_repo)
     return html_output
 
 
@@ -480,7 +508,7 @@ if __name__ == "__main__":
     refs = collect_commit_refs(data)
     commit_data = query_commit_data(refs, token)
 
-    dynamic_content = build_table_html(data, prod, url_prefix, commit_data)
+    dynamic_content = build_table_html(data, prod, url_prefix, commit_data, gh_repo=args.owner_repo or "")
 
     template_path = Path(__file__).with_suffix(".template.html")
     with open(template_path, "r", encoding="utf-8") as template_file:
