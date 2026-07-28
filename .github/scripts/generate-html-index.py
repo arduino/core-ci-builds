@@ -189,8 +189,11 @@ def fmt_version_link(version: str, ts: str, releases: set|None, owner: str = "",
 
 
 def version_to_ref(version: str) -> str:
-    """Extract the git ref from a version string. +suffix → SHA, else tag."""
-    return version.split("+", 1)[1] if "+" in version else version
+    """Extract the git ref from a version string. +suffix → SHA (optional leading 'g'), else tag."""
+    if "+" not in version:
+        return version
+    sha = version.split("+", 1)[1]
+    return re.sub(r"^g?([0-9a-f]+)$", r"\1", sha)
 
 
 def more_pill(count: int) -> str:
