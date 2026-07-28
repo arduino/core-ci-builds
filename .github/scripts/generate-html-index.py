@@ -150,9 +150,10 @@ def collect_ci_entries() -> dict:
 def collect_prod_entry() -> dict:
     """Load prod.json.srcmap from OUTPUT_DIR and build an entry dict (no timestamps)."""
     raw_srcmap = load_srcmap("prod.json")
-    if not raw_srcmap:
-        return {}
-    items, _, _, srcfiles = parse_srcmap_items(raw_srcmap)
+    if raw_srcmap:
+        items, _, _, srcfiles = parse_srcmap_items(raw_srcmap)
+    else:
+        items, srcfiles = {}, {}
     return {
         "file": None,
         "plat_vers": [""], # empty column
