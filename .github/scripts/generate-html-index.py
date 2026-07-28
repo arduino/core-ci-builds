@@ -186,7 +186,7 @@ def fmt_version_link(version: str, ts: str, releases: set|None, owner: str = "",
         return local + version
     ref = version_to_ref(version)
     url = f"https://github.com/{owner}/{repo}/tree/{ref}"
-    return f'{local}<a href="{url}">{version}</a>{tag_pill(version, releases)}'
+    return f'{local}<a href="{url}" title="Source tree page">{version}</a>{tag_pill(version, releases)}'
 
 
 def version_to_ref(version: str) -> str:
@@ -355,7 +355,7 @@ def build_inner_html(index, key = None, url_prefix = "", commit_data: dict = {},
                 if snippet_path and gh_repo:
                     href = f"https://github.com/{gh_repo}/raw/main/{snippet_path}"
                     kind_ = kind_[:-1]  # drop plural 's'
-                    names_parts.append(f'<a href="{href}">{label}</a>')
+                    names_parts.append(f'<a href="{href}" title="Snippet source file">{label}</a>')
                     names_pill = f' <span class="badge badge-{kind_}">{kind_} snippet</span>'
                 else:
                     names_parts.append(label)
@@ -386,7 +386,7 @@ def commit_summary(pr: dict, message: str) -> str:
         pr_number = pr.get("number")
         if pr_number:
             pr_url = f"https://github.com/{owner}/{repo}/pull/{pr_number}"
-            return f'{esc} (<a href="{pr_url}" target="_blank">#{pr_number}</a>)'
+            return f'{esc} (<a href="{pr_url}" title="PR page">#{pr_number}</a>)'
         return esc
 
     first_line = (message.splitlines()[0].strip()) if message else ""
