@@ -16,6 +16,19 @@
         .sortable:hover { background: #dee2e6; }
         summary { cursor: pointer; list-style: none; }
         summary::-webkit-details-marker { display: none; }
+        .summary-row, .sub-summary-row { position: relative; padding-left: 34px; }
+        .summary-row::before, .sub-summary-row::before {
+            content: '▸'; position: absolute; left: 14px; top: 50%;
+            color: #adb5bd; transform: translateY(-50%); transition: transform 0.15s ease;
+        }
+        details[open] > .summary-row::before, details[open] > .sub-summary-row::before {
+            transform: translateY(-50%) rotate(90deg);
+        }
+        .row-actions { display: inline-flex; gap: 4px; margin-left: 10px; vertical-align: middle; }
+        .icon-btn { background: none; border: none; cursor: pointer; font: inherit; font-size: 0.85em;
+                    padding: 2px 5px; border-radius: 4px; line-height: 1; opacity: 0.6; text-decoration: none; }
+        .icon-btn:hover { opacity: 1; background: #dee2e6; }
+        .copy-btn.copied { opacity: 1; }
         .file-item { border-bottom: none; box-shadow: 0 1px 0 0 #e9ecef; }
         .summary-row { font-weight: 600; }
         .summary-row:hover { background: #f8f9fa; }
@@ -78,6 +91,19 @@
         <footer>Last updated: <span class="ts" data-ts="{{ GENERATED_AT }}">{{ GENERATED_AT }}</span></footer>
     </div>
     <script>
+        // Copy a first-level row's index URL to the clipboard
+        function copyIndexUrl(evt, btn) {
+            evt.preventDefault();
+            evt.stopPropagation();
+            const url = btn.dataset.url;
+            navigator.clipboard.writeText(url).then(() => {
+                const original = btn.textContent;
+                btn.textContent = '✅';
+                btn.classList.add('copied');
+                setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 1200);
+            });
+        }
+
         // Age formatting
         function fmtAge(ts) {
             if (!ts) return '';

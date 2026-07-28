@@ -288,7 +288,16 @@ def build_inner_html(index, key = None, url_prefix = "", commit_data: dict = {},
         owner, repo, branch = key
         details = 'file-item'
         badge = '<span class="badge badge-branch">CI branch</span>'
-        title = f'<a href="{url_prefix + index['file']}">{owner}/{repo}<br>&nbsp;@ {branch}</a>'
+        file_url = html.escape(url_prefix + index['file'])
+        title = (
+            f'<span class="file-title">{owner}/{repo}<br>&nbsp;@ {branch}</span>'
+            f'<span class="row-actions">'
+            f'<button type="button" class="icon-btn copy-btn" data-url="{file_url}" '
+            f'title="Copy index URL" onclick="copyIndexUrl(event, this)">📋</button>'
+            f'<a class="icon-btn link-btn" href="{file_url}" title="Open index.json" '
+            f'onclick="event.stopPropagation()">🔗</a>'
+            f'</span>'
+        )
     else: # prod entry
         owner, repo = "", ""
         details = 'file-item official-item'
