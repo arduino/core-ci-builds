@@ -156,6 +156,17 @@
                     iconCell.innerHTML = activityIcon(ts);
                 }
             });
+
+            // Auto-expand the platform sub-group when its parent entry opens, if it's the only platform row
+            document.querySelectorAll('.file-item').forEach(item => {
+                item.addEventListener('toggle', () => {
+                    if (!item.open) return;
+                    const platformGroups = item.querySelectorAll(':scope > .sub-group:has(.badge-platform)');
+                    if (platformGroups.length === 1) {
+                        platformGroups[0].open = true;
+                    }
+                });
+            });
         });
 
         // Filtering Logic
