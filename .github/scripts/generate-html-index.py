@@ -295,8 +295,8 @@ def build_inner_html(index, key = None, url_prefix = "", commit_data: dict = {},
             f'<span class="row-actions">'
             f'<button type="button" class="icon-btn copy-btn" data-url="{file_url}" '
             f'title="Copy index URL" onclick="copyIndexUrl(event, this)">📋</button>'
-            f'<a class="icon-btn link-btn" href="{file_url}" title="Open index.json" '
-            f'onclick="event.stopPropagation()">🔗</a>'
+            f'<a class="icon-btn link-btn" href="{file_url}" title="Download index.json" '
+            f'onclick="event.stopPropagation()" download>⬇️</a>'
             f'</span>'
         )
     else: # prod entry
@@ -355,7 +355,8 @@ def build_inner_html(index, key = None, url_prefix = "", commit_data: dict = {},
                 if snippet_path and gh_repo:
                     href = f"https://github.com/{gh_repo}/raw/main/{snippet_path}"
                     kind_ = kind_[:-1]  # drop plural 's'
-                    names_parts.append(f'<a href="{href}" title="Snippet source file">{label}</a>')
+                    names_parts.append(f'<a href="{href}" title="Download snippet source" '
+                                       f'download>{label}</a>')
                     names_pill = f' <span class="badge badge-{kind_}">{kind_} snippet</span>'
                 else:
                     names_parts.append(label)
