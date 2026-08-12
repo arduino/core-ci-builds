@@ -1,0 +1,49 @@
+{
+  "packages": [
+    {
+      "tools": [
+        {
+          "name": "zephyr-sketch-tool",
+          "version": "0.4.1",
+          "systems": [
+            {
+              "host": "aarch64-linux-gnu",
+              "url": "https://downloads.arduino.cc/tools/zephyr-sketch-tool-0.4.1-aarch64-linux-gnu.tar.gz",
+              "archiveFileName": "zephyr-sketch-tool-0.4.1-aarch64-linux-gnu.tar.gz",
+              "checksum": "SHA-256:a8640cdeb3aa6f88656bf612131c4f5082d13d11ba06d08402161db1eee3b67f",
+              "size": "1501460"
+            },
+            {
+              "host": "arm64-apple-darwin",
+              "url": "https://downloads.arduino.cc/tools/zephyr-sketch-tool-0.4.1-arm64-apple-darwin.tar.gz",
+              "archiveFileName": "zephyr-sketch-tool-0.4.1-arm64-apple-darwin.tar.gz",
+              "checksum": "SHA-256:5097d5f54e87f08e48e14ebb81bcc35932b124c93d9d332e7db836a11cf1b6ee",
+              "size": "1574403"
+            },
+            {
+              "host": "i686-mingw32",
+              "url": "https://downloads.arduino.cc/tools/zephyr-sketch-tool-0.4.1-i686-mingw32.zip",
+              "archiveFileName": "zephyr-sketch-tool-0.4.1-i686-mingw32.zip",
+              "checksum": "SHA-256:a3dd3428725854f0171347861c9bb441b1720a0211ddf5ce91fa4b4d75d55787",
+              "size": "1595520"
+            },
+            {
+              "host": "x86_64-apple-darwin",
+              "url": "https://downloads.arduino.cc/tools/zephyr-sketch-tool-0.4.1-x86_64-apple-darwin.tar.gz",
+              "archiveFileName": "zephyr-sketch-tool-0.4.1-x86_64-apple-darwin.tar.gz",
+              "checksum": "SHA-256:c8d15c7a6c3294e29dbbf76dc5b4a4b266531180ed407b782316e63cb1992370",
+              "size": "1668019"
+            },
+            {
+              "host": "x86_64-linux-gnu",
+              "url": "https://downloads.arduino.cc/tools/zephyr-sketch-tool-0.4.1-x86_64-linux-gnu.tar.gz",
+              "archiveFileName": "zephyr-sketch-tool-0.4.1-x86_64-linux-gnu.tar.gz",
+              "checksum": "SHA-256:3943e926214b475a3517b1f76ea8161d5c4af7965ea42b25ccdb08336c2af908",
+              "size": "1624914"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
