@@ -10,36 +10,36 @@
               "host": "aarch64-linux-gnu",
               "url": "https://downloads.arduino.cc/tools/zephyr-sketch-tool-0.4.1-aarch64-linux-gnu.tar.gz",
               "archiveFileName": "zephyr-sketch-tool-0.4.1-aarch64-linux-gnu.tar.gz",
-              "checksum": "SHA-256:a8640cdeb3aa6f88656bf612131c4f5082d13d11ba06d08402161db1eee3b67f",
-              "size": "1501460"
+              "checksum": "SHA-256:f5c56ef6bd4fd4e51e8cf0dff8c1b1cdc283864e6bff0396ac7f9983979a789a",
+              "size": "1501317"
             },
             {
               "host": "arm64-apple-darwin",
               "url": "https://downloads.arduino.cc/tools/zephyr-sketch-tool-0.4.1-arm64-apple-darwin.tar.gz",
               "archiveFileName": "zephyr-sketch-tool-0.4.1-arm64-apple-darwin.tar.gz",
-              "checksum": "SHA-256:5097d5f54e87f08e48e14ebb81bcc35932b124c93d9d332e7db836a11cf1b6ee",
-              "size": "1574403"
+              "checksum": "SHA-256:96c53b13c4ca1e8b96ee81e507c8ab25564cbb5469e3b8aa6e0cafe040f6a695",
+              "size": "1574493"
             },
             {
               "host": "i686-mingw32",
               "url": "https://downloads.arduino.cc/tools/zephyr-sketch-tool-0.4.1-i686-mingw32.zip",
               "archiveFileName": "zephyr-sketch-tool-0.4.1-i686-mingw32.zip",
-              "checksum": "SHA-256:a3dd3428725854f0171347861c9bb441b1720a0211ddf5ce91fa4b4d75d55787",
-              "size": "1595520"
+              "checksum": "SHA-256:4defb875534e7d47cbad30621bf603434b0993a53b930cd355dfd376c3397fbb",
+              "size": "1595312"
             },
             {
               "host": "x86_64-apple-darwin",
               "url": "https://downloads.arduino.cc/tools/zephyr-sketch-tool-0.4.1-x86_64-apple-darwin.tar.gz",
               "archiveFileName": "zephyr-sketch-tool-0.4.1-x86_64-apple-darwin.tar.gz",
-              "checksum": "SHA-256:c8d15c7a6c3294e29dbbf76dc5b4a4b266531180ed407b782316e63cb1992370",
-              "size": "1668019"
+              "checksum": "SHA-256:1a7fca5fe5e26a6313a6f948f91b23eb3c2b97d4b8b5cbd4d1f23fb071a14fc4",
+              "size": "1667576"
             },
             {
               "host": "x86_64-linux-gnu",
               "url": "https://downloads.arduino.cc/tools/zephyr-sketch-tool-0.4.1-x86_64-linux-gnu.tar.gz",
               "archiveFileName": "zephyr-sketch-tool-0.4.1-x86_64-linux-gnu.tar.gz",
-              "checksum": "SHA-256:3943e926214b475a3517b1f76ea8161d5c4af7965ea42b25ccdb08336c2af908",
-              "size": "1624914"
+              "checksum": "SHA-256:75093b0e7133e5b5592cc345f0bf82080cf4da91749ed8707c1d62675f0c37cc",
+              "size": "1625029"
             }
           ]
         }
