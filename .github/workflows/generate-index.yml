@@ -130,7 +130,7 @@ jobs:
             mkdir -p "package_index/${index_name}/${owner}/tools"
             for ver in ${versions}; do
               version_dir="${branch_dir}/${ver}/"
-              [ -n "$(ls "${version_dir}tools/*.json" 2>/dev/null)" ] || continue
+              [ -n "$(ls "${version_dir}tools/"*.json 2>/dev/null)" ] || continue
 
               if $include_previous && version_gte "$ver" "$prev_release"; then
                 include=true
