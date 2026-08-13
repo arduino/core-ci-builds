@@ -358,11 +358,17 @@ def build_inner_html(index, key = None, url_prefix = "", commit_data: dict = {},
                     kind_ = kind_[:-1]  # drop plural 's'
                     names_parts.append(f'<a href="{href}" title="Download snippet source" '
                                        f'download>{label}</a>'
+                                       f'<span class="snippet-check" '
+                                       f'data-snippet="{html.escape(raw_url, quote=True)}" data-kind="{kind_}">'
                                        f'<button type="button" class="icon-btn verify-btn" '
-                                       f'data-snippet="{html.escape(raw_url, quote=True)}" data-kind="{kind_}" '
                                        f'title="Check remote file(s)" '
                                        f'onclick="event.stopPropagation(); testRemoteUrls(event, this)">🔎</button>'
-                                       f'<span class="verify-result"></span>')
+                                       f'<span class="verify-result"></span>'
+                                       f'<button type="button" class="icon-btn full-verify-btn" style="display:none" '
+                                       f'title="Full download + checksum verify" '
+                                       f'onclick="event.stopPropagation(); verifyChecksum(event, this)">⬇️✓</button>'
+                                       f'<span class="full-verify-result"></span>'
+                                       f'</span>')
                     names_pill = f' <span class="badge badge-{kind_}">{kind_} snippet</span>'
                 else:
                     names_parts.append(label)

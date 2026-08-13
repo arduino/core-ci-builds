@@ -34,6 +34,7 @@
         .verify-ok   { color: #0f5132; background: #d1e7dd; }
         .verify-warn { color: #664d03; background: #fff3cd; }
         .verify-bad  { color: #842029; background: #f8d7da; }
+        .verify-progress { color: #495057; background: #e9ecef; }
         .file-item { border-bottom: none; box-shadow: 0 1px 0 0 #e9ecef; }
         .summary-row { font-weight: 600; }
         .summary-row:hover { background: #f8f9fa; }
@@ -109,23 +110,33 @@
             });
         }
 
-        // Fetch a snippet's JSON, extract its remote artifact URL(s), then HEAD-check each
+        // Pull {host, url, size, checksum} entries out of a fetched snippet JSON
+        function extractArtifacts(snippet, kind) {
+            const pkg = snippet.packages[0];
+            return kind === 'platform'
+                ? [{ host: null, url: pkg.platforms[0].url, size: pkg.platforms[0].size, checksum: pkg.platforms[0].checksum }]
+                : pkg.tools[0].systems.map(s => ({ host: s.host, url: s.url, size: s.size, checksum: s.checksum }));
+        }
+
+        // Fetch a snippet's JSON, extract its remote artifact URL(s), then HEAD-check each.
+        // Also caches the artifact list on the wrapper and reveals the full-download button.
         async function testRemoteUrls(evt, btn) {
             evt.preventDefault();
             evt.stopPropagation();
+            const wrapper = btn.closest('.snippet-check');
             if (btn.dataset.busy) return;
             btn.dataset.busy = '1';
-            const resultEl = btn.nextElementSibling; // .verify-result
+            const resultEl = wrapper.querySelector('.verify-result');
+            const fullBtn = wrapper.querySelector('.full-verify-btn');
             const original = btn.textContent;
             btn.textContent = '⏳';
 
             let urls;
             try {
-                const snippet = await fetch(btn.dataset.snippet, { cache: 'no-store' }).then(r => r.json());
-                const pkg = snippet.packages[0];
-                urls = btn.dataset.kind === 'platform'
-                    ? [{ host: null, url: pkg.platforms[0].url, size: pkg.platforms[0].size }]
-                    : pkg.tools[0].systems.map(s => ({ host: s.host, url: s.url, size: s.size }));
+                const snippet = await fetch(wrapper.dataset.snippet, { cache: 'no-store' }).then(r => r.json());
+                urls = extractArtifacts(snippet, wrapper.dataset.kind);
+                wrapper.dataset.artifacts = JSON.stringify(urls);
+                fullBtn.style.display = '';
             } catch {
                 btn.textContent = original;
                 delete btn.dataset.busy;
@@ -155,6 +166,69 @@
             resultEl.innerHTML = checks.map(c =>
                 `<span class="verify-badge verify-${c.state}" title="${c.detail || c.host || 'file'}">${c.host ? c.host + ': ' : ''}${c.label}</span>`
             ).join('');
+        }
+
+        // Full download + SHA-256 verify, with a live bytes/elapsed-seconds counter per
+        // artifact so a stalled transfer is visible (frozen byte count, ticking timer)
+        // instead of an unbounded silent wait. Buffers the whole artifact in memory
+        // since crypto.subtle.digest() has no incremental/streaming form.
+        async function verifyChecksum(evt, btn) {
+            evt.preventDefault();
+            evt.stopPropagation();
+            if (btn.dataset.busy) return;
+            const wrapper = btn.closest('.snippet-check');
+            const artifacts = JSON.parse(wrapper.dataset.artifacts || '[]');
+            if (!artifacts.length) return;
+            btn.dataset.busy = '1';
+            const resultEl = wrapper.querySelector('.full-verify-result');
+
+            resultEl.innerHTML = artifacts.map(({ host }) =>
+                `<span class="verify-badge verify-progress">${host ? host + ': ' : ''}0B (0s)</span>`
+            ).join('');
+            const badges = resultEl.children;
+
+            await Promise.all(artifacts.map(async ({ host, url, size, checksum }, i) => {
+                const badge = badges[i];
+                const startedAt = Date.now();
+                let received = 0;
+                const tick = setInterval(() => {
+                    const elapsed = Math.round((Date.now() - startedAt) / 1000);
+                    badge.textContent = `${host ? host + ': ' : ''}${fmtBytes(received)}/${fmtBytes(size)} (${elapsed}s)`;
+                }, 1000);
+
+                try {
+                    const resp = await fetch(url, { cache: 'no-store' });
+                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                    const chunks = [];
+                    const reader = resp.body.getReader();
+                    for (;;) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        chunks.push(value);
+                        received += value.byteLength;
+                    }
+                    const buf = new Uint8Array(received);
+                    let offset = 0;
+                    for (const chunk of chunks) {
+                        buf.set(chunk, offset);
+                        offset += chunk.byteLength;
+                    }
+                    const digest = await crypto.subtle.digest('SHA-256', buf.buffer);
+                    const hex = [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
+                    const expected = (checksum || '').split(':').pop().toLowerCase();
+                    clearInterval(tick);
+                    const matches = hex === expected;
+                    badge.className = matches ? 'verify-badge verify-ok' : 'verify-badge verify-bad';
+                    badge.textContent = `${host ? host + ': ' : ''}${matches ? 'checksum OK' : 'checksum mismatch'}`;
+                    if (!matches) badge.title = `expected SHA-256:${expected}\ngot SHA-256:${hex}`;
+                } catch (e) {
+                    clearInterval(tick);
+                    badge.className = 'verify-badge verify-bad';
+                    badge.textContent = `${host ? host + ': ' : ''}${e.message || 'download failed'}`;
+                }
+            }));
+
+            delete btn.dataset.busy;
         }
 
         function fmtBytes(n) {
