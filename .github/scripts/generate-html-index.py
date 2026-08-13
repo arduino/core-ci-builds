@@ -376,7 +376,7 @@ def build_inner_html(index, key = None, url_prefix = "", commit_data: dict = {},
     return out
 
 
-def commit_summary(pr: dict, message: str) -> str:
+def commit_summary(pr: dict, message: str, owner: str, repo: str) -> str:
     """Return a ready-to-embed HTML snippet for a commit.
 
     If a PR node is given, use its title + linked number.
@@ -485,7 +485,7 @@ query {{
                     "add":     node.get("additions"),
                     "del":     node.get("deletions"),
                     "files":   node.get("changedFilesIfAvailable"),
-                    "summary": commit_summary(pr, msg),
+                    "summary": commit_summary(pr, msg, owner, repo),
                     "author":  pr_author or git_author,
                 }
 
