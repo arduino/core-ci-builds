@@ -29,6 +29,11 @@
                     padding: 2px 5px; border-radius: 4px; line-height: 1; opacity: 0.6; text-decoration: none; }
         .icon-btn:hover { opacity: 1; background: #dee2e6; }
         .copy-btn.copied { opacity: 1; }
+        .verify-result { display: inline-flex; flex-wrap: wrap; gap: 3px; margin-left: 4px; vertical-align: middle; }
+        .verify-badge { font-size: 0.78em; padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
+        .verify-ok   { color: #0f5132; background: #d1e7dd; }
+        .verify-warn { color: #664d03; background: #fff3cd; }
+        .verify-bad  { color: #842029; background: #f8d7da; }
         .file-item { border-bottom: none; box-shadow: 0 1px 0 0 #e9ecef; }
         .summary-row { font-weight: 600; }
         .summary-row:hover { background: #f8f9fa; }
@@ -102,6 +107,61 @@
                 btn.classList.add('copied');
                 setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 1200);
             });
+        }
+
+        // Fetch a snippet's JSON, extract its remote artifact URL(s), then HEAD-check each
+        async function testRemoteUrls(evt, btn) {
+            evt.preventDefault();
+            evt.stopPropagation();
+            if (btn.dataset.busy) return;
+            btn.dataset.busy = '1';
+            const resultEl = btn.nextElementSibling; // .verify-result
+            const original = btn.textContent;
+            btn.textContent = '⏳';
+
+            let urls;
+            try {
+                const snippet = await fetch(btn.dataset.snippet, { cache: 'no-store' }).then(r => r.json());
+                const pkg = snippet.packages[0];
+                urls = btn.dataset.kind === 'platform'
+                    ? [{ host: null, url: pkg.platforms[0].url, size: pkg.platforms[0].size }]
+                    : pkg.tools[0].systems.map(s => ({ host: s.host, url: s.url, size: s.size }));
+            } catch {
+                btn.textContent = original;
+                delete btn.dataset.busy;
+                resultEl.innerHTML = '<span class="verify-badge verify-bad">snippet fetch failed</span>';
+                return;
+            }
+
+            const checks = await Promise.all(urls.map(async ({ host, url, size }) => {
+                try {
+                    const resp = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+                    const len = resp.headers.get('content-length');
+                    if (!resp.ok) return { host, state: 'bad', label: `HTTP ${resp.status}` };
+                    if (len == null) return { host, state: 'warn', label: 'no size' };
+                    if (len === String(size)) return { host, state: 'ok', label: fmtBytes(len) };
+                    const delta = Number(len) - Number(size);
+                    return {
+                        host, state: 'warn', label: `${fmtBytes(len)} (Δ${delta > 0 ? '+' : ''}${delta}B)`,
+                        detail: `expected ${size} bytes, got ${len} bytes (Δ${delta > 0 ? '+' : ''}${delta}B)`,
+                    };
+                } catch {
+                    return { host, state: 'bad', label: 'unreachable' };
+                }
+            }));
+
+            btn.textContent = original;
+            delete btn.dataset.busy;
+            resultEl.innerHTML = checks.map(c =>
+                `<span class="verify-badge verify-${c.state}" title="${c.detail || c.host || 'file'}">${c.host ? c.host + ': ' : ''}${c.label}</span>`
+            ).join('');
+        }
+
+        function fmtBytes(n) {
+            n = Number(n);
+            if (n >= 1e6) return (n / 1e6).toFixed(1) + 'MB';
+            if (n >= 1e3) return (n / 1e3).toFixed(0) + 'KB';
+            return n + 'B';
         }
 
         // Age formatting

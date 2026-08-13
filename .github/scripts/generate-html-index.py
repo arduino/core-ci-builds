@@ -354,9 +354,15 @@ def build_inner_html(index, key = None, url_prefix = "", commit_data: dict = {},
                 label = f"{packager}:{name}"
                 if snippet_path and gh_repo:
                     href = f"https://github.com/{gh_repo}/raw/main/{snippet_path}"
+                    raw_url = f"https://raw.githubusercontent.com/{gh_repo}/main/{snippet_path}"
                     kind_ = kind_[:-1]  # drop plural 's'
                     names_parts.append(f'<a href="{href}" title="Download snippet source" '
-                                       f'download>{label}</a>')
+                                       f'download>{label}</a>'
+                                       f'<button type="button" class="icon-btn verify-btn" '
+                                       f'data-snippet="{html.escape(raw_url, quote=True)}" data-kind="{kind_}" '
+                                       f'title="Check remote file(s)" '
+                                       f'onclick="event.stopPropagation(); testRemoteUrls(event, this)">🔎</button>'
+                                       f'<span class="verify-result"></span>')
                     names_pill = f' <span class="badge badge-{kind_}">{kind_} snippet</span>'
                 else:
                     names_parts.append(label)
