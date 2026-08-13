@@ -148,23 +148,23 @@
                 try {
                     const resp = await fetch(url, { method: 'HEAD', cache: 'no-store' });
                     const len = resp.headers.get('content-length');
-                    if (!resp.ok) return { host, state: 'bad', label: `HTTP ${resp.status}` };
-                    if (len == null) return { host, state: 'warn', label: 'no size' };
-                    if (len === String(size)) return { host, state: 'ok', label: fmtBytes(len) };
+                    if (!resp.ok) return { host, url, state: 'bad', label: `HTTP ${resp.status}` };
+                    if (len == null) return { host, url, state: 'warn', label: 'no size' };
+                    if (len === String(size)) return { host, url, state: 'ok', label: fmtBytes(len) };
                     const delta = Number(len) - Number(size);
                     return {
-                        host, state: 'warn', label: `${fmtBytes(len)} (Δ${delta > 0 ? '+' : ''}${delta}B)`,
+                        host, url, state: 'warn', label: `${fmtBytes(len)} (Δ${delta > 0 ? '+' : ''}${delta}B)`,
                         detail: `expected ${size} bytes, got ${len} bytes (Δ${delta > 0 ? '+' : ''}${delta}B)`,
                     };
                 } catch {
-                    return { host, state: 'bad', label: 'unreachable' };
+                    return { host, url, state: 'bad', label: 'unreachable' };
                 }
             }));
 
             btn.textContent = original;
             delete btn.dataset.busy;
             resultEl.innerHTML = checks.map(c =>
-                `<span class="verify-badge verify-${c.state}" title="${c.detail || c.host || 'file'}">${c.host ? c.host + ': ' : ''}${c.label}</span>`
+                `<a href="${c.url}" download class="verify-badge verify-${c.state}" title="${c.detail || c.host || 'file'}">${c.host ? c.host + ': ' : ''}${c.label}</a>`
             ).join('');
         }
 
@@ -182,8 +182,8 @@
             btn.dataset.busy = '1';
             const resultEl = wrapper.querySelector('.full-verify-result');
 
-            resultEl.innerHTML = artifacts.map(({ host }) =>
-                `<span class="verify-badge verify-progress">${host ? host + ': ' : ''}0B (0s)</span>`
+            resultEl.innerHTML = artifacts.map(({ host, url }) =>
+                `<a href="${url}" download class="verify-badge verify-progress">${host ? host + ': ' : ''}0B (0s)</a>`
             ).join('');
             const badges = resultEl.children;
 
