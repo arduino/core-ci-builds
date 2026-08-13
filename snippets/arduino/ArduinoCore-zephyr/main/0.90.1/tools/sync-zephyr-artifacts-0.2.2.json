@@ -10,36 +10,36 @@
               "host": "aarch64-linux-gnu",
               "url": "https://downloads.arduino.cc/tools/sync-zephyr-artifacts-0.2.2-aarch64-linux-gnu.tar.gz",
               "archiveFileName": "sync-zephyr-artifacts-0.2.2-aarch64-linux-gnu.tar.gz",
-              "checksum": "SHA-256:fca682c5e42e29e31776ab9c4b994d76bc45363f293e331edb4d57e99203c501",
-              "size": "4874229"
+              "checksum": "SHA-256:456ce774fb0f5c1c3c17350f38376d58d18ea0e080b7fea8e6f9dd3f6cea560d",
+              "size": "4874232"
             },
             {
               "host": "arm64-apple-darwin",
               "url": "https://downloads.arduino.cc/tools/sync-zephyr-artifacts-0.2.2-arm64-apple-darwin.tar.gz",
               "archiveFileName": "sync-zephyr-artifacts-0.2.2-arm64-apple-darwin.tar.gz",
-              "checksum": "SHA-256:1d3b3dc12ab143316f58c7cda2b19c364dadc3f21f1c3b2feb44c093f9d4011b",
-              "size": "5034853"
+              "checksum": "SHA-256:e697ceb75692167b436ac0e90e06f26148c0af3b098813681507d2e0d0afc01e",
+              "size": "5034902"
             },
             {
               "host": "i686-mingw32",
               "url": "https://downloads.arduino.cc/tools/sync-zephyr-artifacts-0.2.2-i686-mingw32.zip",
               "archiveFileName": "sync-zephyr-artifacts-0.2.2-i686-mingw32.zip",
-              "checksum": "SHA-256:fead86febb3cfba67fd978b2a79ade2487d48fb1457a13f4219f9b62174542ab",
-              "size": "5239150"
+              "checksum": "SHA-256:58742ee7344e6864586b61d3560ab193d24be9a9ad9b606a7b1dab541815d57e",
+              "size": "5239157"
             },
             {
               "host": "x86_64-apple-darwin",
               "url": "https://downloads.arduino.cc/tools/sync-zephyr-artifacts-0.2.2-x86_64-apple-darwin.tar.gz",
               "archiveFileName": "sync-zephyr-artifacts-0.2.2-x86_64-apple-darwin.tar.gz",
-              "checksum": "SHA-256:a777ee07d8e7a8f1691e9d418a8d942fc2021e23ec138561ef7f0159ad80ec4b",
-              "size": "5383457"
+              "checksum": "SHA-256:75a3b4936b1679ccfdaabe1867a4e5dbc4fe49317694b0f0f46c601e36909346",
+              "size": "5383432"
             },
             {
               "host": "x86_64-linux-gnu",
               "url": "https://downloads.arduino.cc/tools/sync-zephyr-artifacts-0.2.2-x86_64-linux-gnu.tar.gz",
               "archiveFileName": "sync-zephyr-artifacts-0.2.2-x86_64-linux-gnu.tar.gz",
-              "checksum": "SHA-256:69591725f4dec96d830f62768279f2a53ee8fb836f403a9b5b4223697c4a9d1f",
-              "size": "5370027"
+              "checksum": "SHA-256:75712c4d1824c64b63ff1d2ea4208bf57293e59569ce46d1907b9bcb61cc8cda",
+              "size": "5370031"
             }
           ]
         }
