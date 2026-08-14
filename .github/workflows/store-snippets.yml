@@ -162,6 +162,11 @@ jobs:
             exit 1
           fi
 
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+].+)?$ ]]; then
+            echo "::error::Version '$VERSION' is not a valid semver string (X.Y.Z, optionally followed by -pre or +build) - refusing to store"
+            exit 1
+          fi
+
           VERSION_SHORT=$(echo "$VERSION" | sed 's/^\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/')
           echo "VERSION_SHORT=$VERSION_SHORT" >> $GITHUB_ENV
 
