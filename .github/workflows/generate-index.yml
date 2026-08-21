@@ -142,8 +142,14 @@ jobs:
               $include && cp "${version_dir}tools/"*.json "package_index/${index_name}/${owner}/tools/" 2>/dev/null || true
             done
 
-            # Generate the final index
-            (cd package_index && scripts/meld.py --ref-index prod.json "../pages/package_${index_name}_index.json" "${index_name}/")
+            # Generate the final index, flag errors
+            if ! (cd package_index && scripts/meld.py --ref-index prod.json "../pages/package_${index_name}_index.json" "${index_name}/"); then
+              echo "::warning::Failed to generate index for ${index_name}, skipping this branch"
+              rm -f pages/package_${index_name}_index.json*
+              echo "HAD_INDEX_ERROR=true" >> "$GITHUB_ENV"
+              echo "::endgroup::"
+              continue
+            fi
 
             echo "::endgroup::"
           done
@@ -164,8 +170,15 @@ jobs:
         with:
           path: pages/
 
+      - name: Fail if any branch index failed to generate
+        if: env.HAD_INDEX_ERROR == 'true'
+        run: |
+          echo "One or more branch indexes failed to generate (see warnings above); failing job after pushing what succeeded." >&2
+          exit 1
+
   deploy:
     needs: generate
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages
