@@ -1,0 +1,122 @@
+{
+  "packages": [
+    {
+      "platforms": [
+        {
+          "name": "Arduino Q Boards",
+          "architecture": "zephyr",
+          "version": "1.1.0-rc1",
+          "category": "Arduino",
+          "url": "https://downloads.arduino.cc/cores/zephyr/ArduinoCore-zephyr_unoq-81fbb5ba.tar.bz2",
+          "archiveFileName": "ArduinoCore-zephyr_unoq-81fbb5ba.tar.bz2",
+          "checksum": "SHA-256:8d5b7cfb236e05f2d9c739cb3b2b11ee284de6d42f3bceadf46c76a0a5f0494f",
+          "size": "10702222",
+          "help": {
+            "online": "https://www.arduino.cc/en/Reference/HomePage"
+          },
+          "boards": [
+            {
+              "name": "Arduino UNO Q"
+            },
+            {
+              "name": "Arduino Ventuno Q"
+            }
+          ],
+          "libraryDependencies": [
+            {
+              "name": "Arduino_RouterBridge",
+              "version": "0.4.4"
+            },
+            {
+              "name": "Arduino_RPClite",
+              "version": "0.3.1"
+            },
+            {
+              "name": "MsgPack",
+              "version": "0.4.2"
+            },
+            {
+              "name": "DebugLog",
+              "version": "0.8.4"
+            },
+            {
+              "name": "ArxTypeTraits",
+              "version": "0.3.2"
+            },
+            {
+              "name": "ArxContainer",
+              "version": "0.7.0"
+            }
+          ],
+          "toolsDependencies": [
+            {
+              "packager": "zephyr",
+              "name": "arm-zephyr-eabi",
+              "version": "1.0.1"
+            },
+            {
+              "packager": "arduino",
+              "name": "dfu-util",
+              "version": "0.11.0-arduino5"
+            },
+            {
+              "packager": "arduino",
+              "name": "bossac",
+              "version": "1.9.1-arduino2"
+            },
+            {
+              "packager": "arduino",
+              "name": "zephyr-sketch-tool",
+              "version": "0.4.2"
+            },
+            {
+              "packager": "arduino",
+              "name": "sync-zephyr-artifacts",
+              "version": "0.2.3"
+            },
+            {
+              "packager": "arduino",
+              "name": "adb",
+              "version": "32.0.0"
+            },
+            {
+              "packager": "arduino",
+              "name": "remoteocd",
+              "version": "0.1.1"
+            },
+            {
+              "packager": "SiliconLabs",
+              "name": "openocd",
+              "version": "0.12.0-arduino1-static"
+            },
+            {
+              "packager": "arduino",
+              "name": "gen-rodata-ld",
+              "version": "0.1.1"
+            },
+            {
+              "packager": "arduino",
+              "name": "zephyr-check-size",
+              "version": "0.1.0"
+            },
+            {
+              "packager": "arduino",
+              "name": "bin2uf2",
+              "version": "0.1.0"
+            },
+            {
+              "packager": "arduino",
+              "name": "scripting-tools",
+              "version": "0.0.7"
+            },
+            {
+              "packager": "arduino",
+              "name": "rp2040tools",
+              "version": "1.1.0-rc1"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
