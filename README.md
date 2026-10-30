@@ -64,6 +64,15 @@ Tools accumulate across version directories, but the generated index only includ
 
 The reasoning: by the time a release tag is cut, the public index has not yet been updated — so tools from the new release must be included. But tools from earlier releases are already in the public index and should not be duplicated.
 
+### Sunsetting and quarterly archives
+
+Each version directory is dated by the last commit touching any of its files, and is never split across indexes:
+
+- **Current index** (`package_{owner}_{repo}_{branch}_ci_index.json`): only version directories modified in the last 90 calendar days, and only if the branch still exists in the source repo. Otherwise no current index is generated and the branch disappears from the main list.
+- **Quarterly archives** (`package_{owner}_{repo}_{branch}_ci_{YYYY}q{N}_index.json`): every version directory is also included in the archive of the quarter it was last modified in. Archives are listed in a separate section of the page.
+
+Tool selection for an archive follows the rules above, evaluated as of the highest version directory in that archive.
+
 ## Setup
 
 ### 1. Enable GitHub Pages

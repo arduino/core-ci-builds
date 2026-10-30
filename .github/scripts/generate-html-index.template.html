@@ -71,6 +71,24 @@
         .page-header img { width: 80px; height: 80px; border-radius: 50%; flex-shrink: 0; }
         .page-header-content { flex: 1; display: flex; flex-direction: column; gap: 8px; }
         .page-header h2 { margin: 0; }
+        .archive-section { margin-top: 32px; }
+        .archive-section h3 { margin: 0 0 4px; }
+        .archive-note { font-size: 0.85em; color: #6c757d; margin: 0 0 10px; }
+        .archive-row { display: flex; gap: 15px; padding: 6px 15px 6px 30px; font-size: 0.85em; box-shadow: 0 1px 0 0 #e9ecef; }
+        .archive-repo { position: relative; padding: 8px 15px 8px 34px; font-size: 0.85em; font-weight: 600; color: #6c757d; box-shadow: 0 1px 0 0 #e9ecef; }
+        .archive-repo:hover { background: #f8f9fa; }
+        .archive-repo::before {
+            content: '▸'; position: absolute; left: 14px; top: 50%;
+            color: #adb5bd; transform: translateY(-50%); transition: transform 0.15s ease;
+        }
+        .archive-group[open] > .archive-repo::before { transform: translateY(-50%) rotate(90deg); }
+        .archive-label { flex: 0 0 300px; font-weight: 600; white-space: nowrap; }
+        .archive-range { color: #6c757d; }
+        .archive-links { display: flex; flex-wrap: wrap; gap: 4px 18px; }
+        .archive-link { white-space: nowrap; }
+        .archive-link .copy-btn { margin-left: 2px; }
+	.badge-open      { color: #664d03; background-color: #fff3cd; border: 1px solid #ffecb5; font-size: 0.75em; }
+	.badge-archived  { color: #6c757d; background-color: #f8f9fa; border: 1px solid #dee2e6; font-size: 0.75em; }
     </style>
 </head>
 <body>
@@ -92,6 +110,14 @@
         <div id="emptyMessage">No matching results.</div>
         <div id="fileList">
             {{ FILE_LIST_CONTENT }}
+        </div>
+
+        <div class="archive-section">
+            <h3>Archives</h3>
+            <p class="archive-note">The list above only has builds from the last 90 days, for branches that still exist upstream. Every build is also kept in the archive for its quarter.</p>
+            <div id="archiveList">
+                {{ ARCHIVE_LIST_CONTENT }}
+            </div>
         </div>
 
         <footer>Last updated: <span class="ts" data-ts="{{ GENERATED_AT }}">{{ GENERATED_AT }}</span></footer>

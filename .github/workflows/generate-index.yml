@@ -59,6 +59,45 @@ jobs:
           version_gte() { [ "$(version_max "$1" "$2")" = "$1" ]; }
           version_gt()  { version_gte "$1" "$2" && [ "$1" != "$2" ]; }
 
+          # Sunsetting: each version dir is assigned, as a whole, a timestamp
+          # equal to the last commit touching any of its files. Version dirs
+          # are never split, so platforms always travel with their tools.
+          # - the current index only contains version dirs modified in the
+          #   last 90 calendar days, and only for branches that still exist
+          #   in the source repo;
+          # - every version dir is also stored in the archive index of the
+          #   quarter of its timestamp (e.g. arduino_zephyr_main_ci_2026q3).
+          declare -A dir_ts
+          while IFS=$'\t' read -r ts path; do
+            IFS=/ read -r -a p <<< "$path"
+            [ ${#p[@]} -gt 5 ] || continue
+            d="${p[0]}/${p[1]}/${p[2]}/${p[3]}/${p[4]}"
+            if [[ "$ts" > "${dir_ts[$d]}" ]]; then dir_ts[$d]=$ts; fi
+          done < <(package_index/scripts/last_modified.sh snippets/)
+          cutoff=$(date -u -d "90 days ago" +%Y-%m-%d)
+          now=$(date -u +%Y-%m-%dT%H:%M:%S+00:00)
+
+          # Branch existence check: list the heads of each source repo once.
+          # If the remote cannot be reached, keep all its branches.
+          declare -A remote_heads
+          branch_exists() {
+            local owner=$1 repo=$2 branch=$3 attempt heads
+            if [ -z "${remote_heads[$owner/$repo]+set}" ]; then
+              remote_heads[$owner/$repo]="?"
+              for attempt in 1 2 3; do
+                if heads=$(GIT_TERMINAL_PROMPT=0 git ls-remote --heads "https://github.com/${owner}/${repo}.git"); then
+                  remote_heads[$owner/$repo]=$(printf '%s\n' "$heads" | sed -n 's|^[0-9a-f]*\trefs/heads/||p')
+                  break
+                fi
+                if [ $attempt -lt 3 ]; then sleep 5; fi
+              done
+              if [ "${remote_heads[$owner/$repo]}" = "?" ]; then
+                echo "::warning::Cannot list branches of ${owner}/${repo}, assuming all its branches still exist"
+              fi
+            fi
+            [ "${remote_heads[$owner/$repo]}" = "?" ] || printf '%s\n' "${remote_heads[$owner/$repo]}" | grep -qxF "$branch"
+          }
+
           # build_index <branch_dir> <owner> <short_repo> <name> <max_ver> <version>...
           #
           # Builds pages/package_<name>_index.json from the platforms of the
@@ -81,7 +120,8 @@ jobs:
           # release (say. 1.1.0).
           # No tools added before 1.0.0 will be included in those indexes.
           #
-          # Only releases and version dirs up to <max_ver> are considered.
+          # Only releases and version dirs up to <max_ver> are considered, so
+          # archive indexes get the same tools a current index had back then.
           build_index() {
             local branch_dir=$1 owner=$2 short_repo=$3 name=$4 max_ver=$5
             shift 5
@@ -92,6 +132,11 @@ jobs:
             for ver in "$@"; do
               cp "${branch_dir}${ver}/platforms/"*.json "${out_dir}/platforms/" 2>/dev/null || true
             done
+            if [ -z "$(ls -A "${out_dir}/platforms")" ]; then
+              echo "No platforms for ${name}, skipping"
+              rm -rf "package_index/${name}"
+              return 0
+            fi
 
             # Copy tools from <indexname>_staging if present (mirrors zephyr_staging → zephyr_ci)
             local staging_dir="package_index/${short_repo}_staging"
@@ -164,9 +209,33 @@ jobs:
             versions=$(cd "$branch_dir" && ls -Ad */ | tr -d '/')
             max_ver=$(version_max $versions)
 
+            # Bucket version dirs by timestamp
+            recent=""
+            declare -A quarters=()
+            for ver in ${versions}; do
+              ts="${dir_ts[${branch_dir}${ver}]:-$now}"
+              [[ "${ts:0:10}" < "$cutoff" ]] || recent+=" $ver"
+              quarter="${ts:0:4}q$(( (10#${ts:5:2} - 1) / 3 + 1 ))"
+              quarters[$quarter]+=" $ver"
+            done
+
             echo "::group::Building index ${index_name}.json from ${branch_dir}"
-            build_index "$branch_dir" "$owner" "$short_repo" "$index_name" "$max_ver" $versions
+            if [ -z "$recent" ]; then
+              echo "No version dirs modified since ${cutoff}, archiving ${index_name}"
+            elif ! branch_exists "$owner" "$repo" "$branch"; then
+              echo "Branch ${branch} no longer exists in ${owner}/${repo}, archiving ${index_name}"
+            else
+              build_index "$branch_dir" "$owner" "$short_repo" "$index_name" "$max_ver" $recent
+            fi
             echo "::endgroup::"
+
+            for quarter in "${!quarters[@]}"; do
+              echo "::group::Building archive index ${index_name}_${quarter}.json"
+              build_index "$branch_dir" "$owner" "$short_repo" "${index_name}_${quarter}" \
+                "$(version_max ${quarters[$quarter]})" ${quarters[$quarter]}
+              echo "::endgroup::"
+            done
+            unset quarters
           done
 
           # Export the prod index as well, for use as a reference in the HTML generation step

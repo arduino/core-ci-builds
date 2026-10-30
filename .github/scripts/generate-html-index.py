@@ -132,6 +132,8 @@ def collect_ci_entries() -> dict:
             continue
         owner, repo, branch = parts
         index_name = f"package_{get_index_name(owner, repo, branch)}_index.json"
+        if not (OUTPUT_DIR / index_name).exists():
+            continue  # no current index: branch is only available as archives
         raw_srcmap = load_srcmap(index_name)
         items, plat_versions, last_ts, srcfiles = parse_srcmap_items(raw_srcmap, last_timestamps, snippet_paths)
 
@@ -145,6 +147,44 @@ def collect_ci_entries() -> dict:
             "releases": load_releases(owner, repo, branch),
         }
     return data
+
+
+def version_dir_range(raw_srcmap: dict) -> tuple:
+    """Return the (lowest, highest) version dirs (maj.min.rev) of the platforms in a srcmap."""
+    version_dirs = set()
+    for what in raw_srcmap.get("platforms", {}):
+        version = what.split(":", 2)[2]
+        match = re.match(r"\d+\.\d+\.\d+", version)
+        if match:
+            version_dirs.add(match.group(0))
+    versions = sort_by_version(list(version_dirs))
+    return (versions[-1], versions[0]) if versions else ("", "")
+
+
+def collect_archives() -> dict:
+    """Find per-quarter archive indexes.
+
+    Returns {(owner, repo, branch): [(quarter, file, lowest, highest)]}, newest quarter first.
+    """
+    archives: dict = {}
+    for branch_dir in sorted(SNIPPETS_DIR.glob("*/*/*/")):
+        parts = branch_dir.relative_to(SNIPPETS_DIR).parts
+        if len(parts) != 3:
+            continue
+        owner, repo, branch = parts
+        prefix = f"package_{get_index_name(owner, repo, branch)}_"
+        quarters = []
+        for f in OUTPUT_DIR.glob(f"{prefix}????q?_index.json"):
+            quarter = f.name[len(prefix):len(prefix) + 6]
+            quarters.append((quarter, f.name, *version_dir_range(load_srcmap(f.name))))
+        if quarters:
+            archives[(owner, repo, branch)] = sorted(quarters, reverse=True)
+    return archives
+
+
+def current_quarter(ts: str) -> str:
+    """Return the 'YYYYqN' quarter label for an ISO8601 timestamp."""
+    return f"{ts[:4]}q{(int(ts[5:7]) - 1) // 3 + 1}"
 
 
 def collect_prod_entry() -> dict:
@@ -415,6 +455,39 @@ def build_table_html(data: dict, prod: dict, url_prefix: str, commit_data: dict 
     return html_output
 
 
+def build_archive_html(archives: dict, data: dict, url_prefix: str, open_quarter: str) -> str:
+    """Render the archive section: a folded group per repo, one line of quarter index links per branch."""
+    by_repo = collections.defaultdict(str)
+    for (owner, repo, branch), quarters in archives.items():
+        archived = ('' if (owner, repo, branch) in data
+                    else ' <span class="badge badge-archived">archived</span>')
+        links = []
+        for quarter, fname, lowest, highest in quarters:
+            file_url = html.escape(url_prefix + fname)
+            open_badge = ' <span class="badge badge-open">open</span>' if quarter == open_quarter else ''
+            range_str = lowest if lowest == highest else f"{lowest} to {highest}"
+            range_str = f' <span class="archive-range">({range_str})</span>' if range_str else ''
+            links.append(
+                f'<span class="archive-link">'
+                f'<a href="{file_url}" title="{file_url}" download>{quarter}</a>{open_badge}{range_str}'
+                f'<button type="button" class="icon-btn copy-btn" data-url="{file_url}" '
+                f'title="Copy index URL" onclick="copyIndexUrl(event, this)">📋</button>'
+                f'</span>')
+        by_repo[(owner, repo)] += f"""
+                <div class="archive-row">
+                    <span class="archive-label">@ {branch}{archived}</span>
+                    <span class="archive-links">{"".join(links)}</span>
+                </div>"""
+
+    html_output = ""
+    for (owner, repo), rows in by_repo.items():
+        html_output += f"""
+            <details class="archive-group">
+                <summary class="archive-repo">{owner}/{repo}</summary>{rows}
+            </details>"""
+    return html_output
+
+
 def collect_commit_refs(data: dict) -> set:
     """Return all (owner, repo, ref) triples referenced by any row in the index."""
     refs = set()
@@ -527,6 +600,7 @@ if __name__ == "__main__":
         exit(1)
 
     data = collect_ci_entries()
+    archives = collect_archives()
     prod = collect_prod_entry()
     generated_at = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -535,6 +609,7 @@ if __name__ == "__main__":
     commit_data = query_commit_data(refs, token)
 
     dynamic_content = build_table_html(data, prod, url_prefix, commit_data, gh_repo=args.owner_repo or "")
+    archive_content = build_archive_html(archives, data, url_prefix, current_quarter(generated_at))
 
     template_path = Path(__file__).with_suffix(".template.html")
     with open(template_path, "r", encoding="utf-8") as template_file:
@@ -542,6 +617,7 @@ if __name__ == "__main__":
 
     final_html = (template_content
                   .replace("{{ FILE_LIST_CONTENT }}", dynamic_content)
+                  .replace("{{ ARCHIVE_LIST_CONTENT }}", archive_content)
                   .replace("{{ GENERATED_AT }}", generated_at))
     with open(OUTPUT_DIR / "index.html", "w", encoding="utf-8") as output_file:
         output_file.write(final_html)
