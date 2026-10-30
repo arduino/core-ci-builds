@@ -100,6 +100,8 @@ jobs:
             # No tools added before 1.0.0 will be included in those indexes.
             #
             tag_file="${branch_dir}tagged-versions"
+            last_release=""
+            prev_release=""
             if [ -f "$tag_file" ]; then
               last_release=$(tail -1 "$tag_file")
               prev_release=$(tail -2 "$tag_file" | head -1)  # same as last if only one entry
