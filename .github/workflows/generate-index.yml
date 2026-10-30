@@ -55,70 +55,70 @@ jobs:
           echo "Building reference index"
           (cd package_index && scripts/meld.py prod.json prod/ > /dev/null)
 
-          for branch_dir in snippets/*/*/*/; do
-            [ -d "$branch_dir" ] || continue
-            IFS='/' read -r _ owner repo branch _ <<< "$branch_dir"
+          version_max() { printf '%s\n' "$@" | sort -V | tail -n 1; }
+          version_gte() { [ "$(version_max "$1" "$2")" = "$1" ]; }
+          version_gt()  { version_gte "$1" "$2" && [ "$1" != "$2" ]; }
 
-            # Derive short name: strip optional 'ArduinoCore-' prefix, append branch and _ci suffix.
-            # e.g. arduino/ArduinoCore-zephyr / main → arduino_zephyr_main_ci
-            short_repo="${repo#ArduinoCore-}"
-            index_name="${owner}_${short_repo}_${branch}_ci"
+          # build_index <branch_dir> <owner> <short_repo> <name> <max_ver> <version>...
+          #
+          # Builds pages/package_<name>_index.json from the platforms of the
+          # given version dirs. <max_ver> is the version the tool selection
+          # logic below is evaluated against.
+          #
+          # Tool selection logic:
+          #
+          # - for a generic run, only include the tools that were added since
+          #   the last release (if any), with the assumption that every
+          #   release includes all the previously built tools.
+          #   built after 1.0.0, but not in an index built for the 1.0.0 release.
+          #
+          # - when tagging a release (max_ver == last_release), as a special
+          #   case, include all tools since the *previous* release (if any),
+          #   because the public index is not yet updated.
+          #
+          # Example: a tool added after 1.0.0 will be included in any index
+          # since that tool's addition up to -and including- the next tagged
+          # release (say. 1.1.0).
+          # No tools added before 1.0.0 will be included in those indexes.
+          #
+          # Only releases and version dirs up to <max_ver> are considered.
+          build_index() {
+            local branch_dir=$1 owner=$2 short_repo=$3 name=$4 max_ver=$5
+            shift 5
+            local ver version_dir include include_previous
+            local out_dir="package_index/${name}/${owner}"
 
-            echo "::group::Building index ${index_name}.json from ${branch_dir}"
-
-            # Platforms: copy from all version subdirs
-            mkdir -p "package_index/${index_name}/${owner}/platforms"
-            for version_dir in "${branch_dir}"*/; do
-              [ -d "${version_dir}platforms" ] || continue
-              cp "${version_dir}platforms/"*.json "package_index/${index_name}/${owner}/platforms/" 2>/dev/null || true
+            mkdir -p "${out_dir}/platforms" "${out_dir}/tools"
+            for ver in "$@"; do
+              cp "${branch_dir}${ver}/platforms/"*.json "${out_dir}/platforms/" 2>/dev/null || true
             done
 
             # Copy tools from <indexname>_staging if present (mirrors zephyr_staging → zephyr_ci)
-            staging_dir="package_index/${short_repo}_staging"
+            local staging_dir="package_index/${short_repo}_staging"
             if [ -d "$staging_dir" ]; then
               (cd "$staging_dir" && for dir in */tools; do
                 [ -d "$dir" ] || continue
-                mkdir -p "../${index_name}/${dir}"
-                cp "${dir}"/*.json "../${index_name}/${dir}/"
+                mkdir -p "../${name}/${dir}"
+                cp "${dir}"/*.json "../${name}/${dir}/"
               done)
             fi
 
-            # Tool selection logic:
-            #
-            # - for a generic run, only include the tools that were added since
-            #   the last release (if any), with the assumption that every
-            #   release includes all the previously built tools.
-            #   built after 1.0.0, but not in an index built for the 1.0.0 release.
-            #
-            # - when tagging a release (max_ver == last_release), as a special
-            #   case, include all tools since the *previous* release (if any),
-            #   because the public index is not yet updated.
-            #
-            # Example: a tool added after 1.0.0 will be included in any index
-            # since that tool's addition up to -and including- the next tagged
-            # release (say. 1.1.0).
-            # No tools added before 1.0.0 will be included in those indexes.
-            #
-            tag_file="${branch_dir}tagged-versions"
-            last_release=""
-            prev_release=""
+            local last_release="" prev_release=""
+            local tag_file="${branch_dir}tagged-versions"
             if [ -f "$tag_file" ]; then
-              last_release=$(tail -1 "$tag_file")
-              prev_release=$(tail -2 "$tag_file" | head -1)  # same as last if only one entry
+              local tags=$(while read -r tag; do
+                [ -n "$tag" ] && version_gte "$max_ver" "$tag" && echo "$tag"
+              done < "$tag_file")
+              if [ -n "$tags" ]; then
+                last_release=$(printf '%s\n' "$tags" | tail -1)
+                prev_release=$(printf '%s\n' "$tags" | tail -2 | head -1)  # same as last if only one entry
+              fi
             fi
             if [ "$last_release" == "$prev_release" ]; then
               # zero or one unique entries in the file - include all tools
               # last_release may be empty if the file is empty
               prev_release="0.0.0"
             fi
-
-            version_max() { printf '%s\n' "$@" | sort -V | tail -n 1; }
-            version_gte() { [ "$(version_max "$1" "$2")" = "$1" ]; }
-            version_gt()  { version_gte "$1" "$2" && [ "$1" != "$2" ]; }
-
-            # Find the maximum version dir present
-            versions=$(cd "$branch_dir" && ls -Ad */ | tr -d '/')
-            max_ver=$(version_max $versions)
 
             if [ "$max_ver" == "$last_release" ]; then
               # this is a release run: include the last release's tools and all newer ones
@@ -129,9 +129,9 @@ jobs:
               include_previous=false
             fi
 
-            mkdir -p "package_index/${index_name}/${owner}/tools"
             for ver in ${versions}; do
-              version_dir="${branch_dir}/${ver}/"
+              if version_gt "$ver" "$max_ver"; then continue; fi
+              version_dir="${branch_dir}${ver}/"
               [ -n "$(ls "${version_dir}tools/"*.json 2>/dev/null)" ] || continue
 
               if $include_previous && version_gte "$ver" "$prev_release"; then
@@ -141,18 +141,31 @@ jobs:
               else
                 include=false
               fi
-              $include && cp "${version_dir}tools/"*.json "package_index/${index_name}/${owner}/tools/" 2>/dev/null || true
+              $include && cp "${version_dir}tools/"*.json "${out_dir}/tools/" 2>/dev/null || true
             done
 
             # Generate the final index, flag errors
-            if ! (cd package_index && scripts/meld.py --ref-index prod.json "../pages/package_${index_name}_index.json" "${index_name}/"); then
-              echo "::warning::Failed to generate index for ${index_name}, skipping this branch"
-              rm -f pages/package_${index_name}_index.json*
+            if ! (cd package_index && scripts/meld.py --ref-index prod.json "../pages/package_${name}_index.json" "${name}/"); then
+              echo "::warning::Failed to generate index for ${name}, skipping it"
+              rm -f pages/package_${name}_index.json*
               echo "HAD_INDEX_ERROR=true" >> "$GITHUB_ENV"
-              echo "::endgroup::"
-              continue
             fi
+          }
 
+          for branch_dir in snippets/*/*/*/; do
+            [ -d "$branch_dir" ] || continue
+            IFS='/' read -r _ owner repo branch _ <<< "$branch_dir"
+
+            # Derive short name: strip optional 'ArduinoCore-' prefix, append branch and _ci suffix.
+            # e.g. arduino/ArduinoCore-zephyr / main → arduino_zephyr_main_ci
+            short_repo="${repo#ArduinoCore-}"
+            index_name="${owner}_${short_repo}_${branch}_ci"
+
+            versions=$(cd "$branch_dir" && ls -Ad */ | tr -d '/')
+            max_ver=$(version_max $versions)
+
+            echo "::group::Building index ${index_name}.json from ${branch_dir}"
+            build_index "$branch_dir" "$owner" "$short_repo" "$index_name" "$max_ver" $versions
             echo "::endgroup::"
           done
 
