@@ -123,7 +123,8 @@ def load_releases(owner: str, repo: str, branch: str) -> set:
     return set(tag_file.read_text().splitlines())
 
 
-def collect_ci_entries() -> dict:
+def collect_ci_entries(public: set = set()) -> dict:
+    """Collect current CI indexes; `public` holds the (kind, packager, name, version) of the public index."""
     last_timestamps, snippet_paths = load_timestamps()
     data: dict = {}
     for branch_dir in sorted(SNIPPETS_DIR.glob("*/*/*/")):
@@ -144,6 +145,9 @@ def collect_ci_entries() -> dict:
             "mtime": last_ts,
             "items": items,
             "srcfiles": srcfiles,
+            # Artifacts built from a snippet, split by presence in the public index
+            "local": {k for k, path in srcfiles.items() if path and k not in public},
+            "public": {k for k, path in srcfiles.items() if path and k in public},
             "releases": load_releases(owner, repo, branch),
         }
     return data
@@ -201,6 +205,8 @@ def collect_prod_entry() -> dict:
         "mtime": None,
         "items": items,
         "srcfiles": srcfiles,
+        "local": set(),
+        "public": set(srcfiles), # every item is in the public index
         "releases": set(),
     }
 
@@ -219,14 +225,21 @@ def tag_pill(version: str, releases: set) -> str:
     return ""
 
 
-def fmt_version_link(version: str, ts: str, releases: set|None, owner: str = "", repo: str = "") -> str:
+PUBLIC_ICON = "🌐"
+ORIGIN_MARKS = {
+    "local": '<span title="CI-generated artifact">🌱</span> ',
+    "public": f'<span title="In public package index">{PUBLIC_ICON}</span> ',
+}
+
+
+def fmt_version_link(version: str, origin: str, releases: set|None, owner: str = "", repo: str = "") -> str:
     """Wrap version in a GitHub tree link. +suffix → SHA, otherwise tag."""
-    local =  '<span title="CI-generated artifact">🌱</span> ' if ts else ""
+    leaf = ORIGIN_MARKS.get(origin, "")
     if releases is None:
-        return local + version
+        return leaf + version
     ref = version_to_ref(version)
     url = f"https://github.com/{owner}/{repo}/tree/{ref}"
-    return f'{local}<a href="{url}" title="Source tree page">{version}</a>{tag_pill(version, releases)}'
+    return f'{leaf}<a href="{url}" title="Source tree page">{version}</a>{tag_pill(version, releases)}'
 
 
 def version_to_ref(version: str) -> str:
@@ -261,20 +274,30 @@ def commit_snippet(entry: dict) -> str:
     return "".join(parts)
 
 
+def version_origins(index: dict, members: list) -> dict:
+    """Map versions of the (kind, packager, name) members to 'local' or 'public'.
+
+    A version is 'local' if any member providing it is a CI-only artifact.
+    """
+    origins = {}
+    for origin in "public", "local":
+        for *member, version in index[origin]:
+            if tuple(member) in members:
+                origins[version] = origin
+    return origins
+
+
 def version_cell(versions: list, releases: set, owner: str, repo: str,
-                 commit_data: dict) -> str:
+                 commit_data: dict, origins: dict) -> str:
     """Build full version cell: latest-link + more-pill + commit-snippet."""
     if not versions:
         return "unknown"
     latest = versions[0]
     if isinstance(latest, tuple):
-        latest, ts = latest
-    else:
-        # no ts info
-        ts = ""
+        latest = latest[0]
     entry = (commit_data.get(f"{owner}/{repo}/{version_to_ref(latest)}", {})
              if releases is not None and latest else {})
-    return (fmt_version_link(latest, ts, releases, owner, repo)
+    return (fmt_version_link(latest, origins.get(latest, ""), releases, owner, repo)
             + more_pill(len(versions))
             + commit_snippet(entry))
 
@@ -328,6 +351,7 @@ def build_inner_html(index, key = None, url_prefix = "", commit_data: dict = {},
     if key: # all CI branch entries
         owner, repo, branch = key
         details = 'file-item'
+        icon = '📜'  # replaced client-side by the activity icon
         badge = '<span class="badge badge-branch">CI branch</span>'
         file_url = html.escape(url_prefix + index['file'])
         title = (
@@ -341,17 +365,19 @@ def build_inner_html(index, key = None, url_prefix = "", commit_data: dict = {},
         )
     else: # prod entry
         owner, repo = "", ""
-        details = 'file-item official-item'
-        badge = '<span class="badge badge-official">official</span>'
+        details = 'file-item public-item'
+        icon = f'<span title="Public package index">{PUBLIC_ICON}</span>'
+        badge = '<span class="badge badge-public">public</span>'
         title = 'package_index.json'
 
     plat_vers = index['plat_vers']
+    plat_origins = version_origins(index, [m for m in index['items'] if m[0] == "platforms"])
     out = f"""
         <details class="{details}">
             <summary class="grid-row summary-row">
-                <span class="activity-cell">📜</span>
+                <span class="activity-cell">{icon}</span>
                 <span>{title} {badge}</span>
-                <span>{version_cell(plat_vers, releases, owner, repo, commit_data)}</span>
+                <span>{version_cell(plat_vers, releases, owner, repo, commit_data, plat_origins)}</span>
                 <span>{fmt_ts(index['mtime'])}</span>
             </summary>"""
 
@@ -372,13 +398,14 @@ def build_inner_html(index, key = None, url_prefix = "", commit_data: dict = {},
                 if v not in all_versions_set or ts > all_versions_set[v]:
                     all_versions_set[v] = ts
         all_versions = sort_by_version([(v, ts) for v, ts in all_versions_set.items()])
+        origins = version_origins(index, members)
 
         out += f"""
             <details class="sub-group">
                 <summary class="grid-row sub-summary-row">
                     <span></span>
                     <span><span class="tree-branch">↳</span> {label} {badge}</span>
-                    <span>{version_cell(all_versions, rel_versions, owner, repo, commit_data)}</span>
+                    <span>{version_cell(all_versions, rel_versions, owner, repo, commit_data, origins)}</span>
                     <span>{fmt_ts(all_versions[0][1])}</span>
                 </summary>"""
 
@@ -419,7 +446,7 @@ def build_inner_html(index, key = None, url_prefix = "", commit_data: dict = {},
                 <div class="grid-row detail-row">
                     <span></span>
                     <span>{names_str}{names_pill}</span>
-                    <span>{fmt_version_link(v, ts, rel_versions, owner, repo)}{commit_snippet(entry)}</span>
+                    <span>{fmt_version_link(v, origins.get(v, ""), rel_versions, owner, repo)}{commit_snippet(entry)}</span>
                     <span>{fmt_ts(ts)}</span>
                 </div>"""
         out += "</details>\n"
@@ -599,9 +626,9 @@ if __name__ == "__main__":
         print(f"Error: Output directory '{OUTPUT_DIR}' does not exist.")
         exit(1)
 
-    data = collect_ci_entries()
-    archives = collect_archives()
     prod = collect_prod_entry()
+    data = collect_ci_entries(public=set(prod['srcfiles']))
+    archives = collect_archives()
     generated_at = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     token = args.github_token or os.environ.get("GITHUB_TOKEN", "")

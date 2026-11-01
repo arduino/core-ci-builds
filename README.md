@@ -187,7 +187,7 @@ The page lists every CI index as a collapsible row:
 | Latest version | Latest platform version across all builds |
 | Last modified | Timestamp of the most recently committed snippet file |
 
-Each row expands to show sub-groups per platform and tool, each with all available versions and their individual timestamps. A search bar filters across all entries. The production `package_index.json` is shown as a reference row (labelled "official") when a search is active.
+Each row expands to show sub-groups per platform and tool, each with all available versions and their individual timestamps. A search bar filters across all entries. The production `package_index.json` is shown as a reference row (labelled "public") when a search is active.
 
 ### Required secrets (in ci-builds)
 

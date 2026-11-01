@@ -54,11 +54,11 @@
 	.badge-branch { color: #664d03; background-color: #fff3cd; border: 1px solid #ffecb5; }
 	.badge-platform { color: #0f5132; background-color: #d1e7dd; /* Light green */ border: 1px solid #badbcc; }
 	.badge-tool { color: #2862c8; background-color: #dfefff; /* Light blue */ border: 1px solid #b6d4fe; }
-	.badge-official  { color: #41464b; background-color: #e2e3e5; border: 1px solid #d3d6d8; }
+	.badge-public  { color: #41464b; background-color: #e2e3e5; border: 1px solid #d3d6d8; }
 	.badge-tag       { color: #1a7f37; background-color: #dafbe1; border: 1px solid #aceebb; }
 	.badge-more      { color: #6c757d; background-color: #f8f9fa; border: 1px solid #dee2e6; font-size: 0.8em; }
-        .official-item { display: none; }
-        .official-item, .official-item > .sub-group > .grid-row { color: #808080; }
+        .public-item { display: none; }
+        .public-item, .public-item > .sub-group > .grid-row { color: #808080; }
         #emptyMessage { display: none; padding: 20px; text-align: center; color: #adb5bd; font-style: italic; }
         footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #dee2e6; text-align: right; font-size: 0.8em; color: #adb5bd; }
         .commit-summary { display: block; font-size: 0.82em; color: #6c757d; font-style: italic; margin-top: 2px; }
@@ -308,7 +308,7 @@
                 return '<span title="Frozen (> 6 months)">🧊</span> ';
             }
 
-            document.querySelectorAll('.file-item:not(.official-item) > summary.summary-row').forEach(row => {
+            document.querySelectorAll('.file-item:not(.public-item) > summary.summary-row').forEach(row => {
                 const tsEl = row.children[3]?.querySelector('[data-ts]');
                 const ts = tsEl?.dataset.ts;
                 const iconCell = row.children[0];
@@ -336,7 +336,7 @@
 
             fileItems.forEach(item => {
                 if (searchWords.length === 0) {
-                    item.style.display = item.classList.contains('official-item') ? 'none' : 'block';
+                    item.style.display = item.classList.contains('public-item') ? 'none' : 'block';
                     item.open = false;
                     item.querySelectorAll('.sub-group').forEach(sub => { sub.open = false; sub.style.display = ''; });
                     item.querySelectorAll('.detail-row').forEach(row => row.style.display = '');
