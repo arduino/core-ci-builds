@@ -51,8 +51,11 @@ runs:
         GH_TOKEN: ${{ github.token }}
         ARTIFACT_NAME: ${{ inputs.artifact }}
       run: |
-        ARTIFACT_ID=$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" \
-          --jq '.artifacts[] | select(.name == "'"$ARTIFACT_NAME"'") | .id')
+        # Filter by name server-side: the unfiltered list is paginated
+        # (30 per page) and runs with many artifacts push ours off page 1.
+        ARTIFACT_ID=$(gh api -X GET "/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" \
+          -f name="$ARTIFACT_NAME" \
+          --jq '[.artifacts[] | select(.name == env.ARTIFACT_NAME and (.expired | not)) | .id] | first // empty')
         if [ -z "$ARTIFACT_ID" ]; then
           echo "::error::Artifact '$ARTIFACT_NAME' not found in run $GITHUB_RUN_ID"
           exit 1
