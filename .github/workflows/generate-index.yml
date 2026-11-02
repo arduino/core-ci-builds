@@ -56,6 +56,7 @@ jobs:
           (cd package_index && scripts/meld.py prod.json prod/ > /dev/null)
 
           version_max() { printf '%s\n' "$@" | sort -V | tail -n 1; }
+          version_min() { printf '%s\n' "$@" | sort -V | head -n 1; }
           version_gte() { [ "$(version_max "$1" "$2")" = "$1" ]; }
           version_gt()  { version_gte "$1" "$2" && [ "$1" != "$2" ]; }
 
@@ -106,26 +107,26 @@ jobs:
           #
           # Tool selection logic:
           #
-          # - for a generic run, only include the tools that were added since
-          #   the last release (if any), with the assumption that every
-          #   release includes all the previously built tools.
-          #   built after 1.0.0, but not in an index built for the 1.0.0 release.
+          # Every tagged release is assumed to publish all the tools built
+          # up to it, so a platform in version dir V only needs the tools
+          # added in dirs after the greatest tag strictly below V, up to V.
+          # The union over all included dirs gives the range
+          #   (greatest tag < min_ver, max_ver]
+          # where <min_ver> is the oldest included version dir.
           #
-          # - when tagging a release (max_ver == last_release), as a special
-          #   case, include all tools since the *previous* release (if any),
-          #   because the public index is not yet updated.
+          # Example: with tags 1.0.0 and 1.1.0, an index containing dirs
+          # 1.0.1 to 1.1.1 includes the tools added in dirs 1.0.1 to 1.1.1,
+          # since the 1.0.1 platforms may use tools never published by 1.1.0.
+          # When tagging a release (max_ver == 1.1.0), the public index is not
+          # updated yet, so the tools of 1.1.0 itself are included as well.
           #
-          # Example: a tool added after 1.0.0 will be included in any index
-          # since that tool's addition up to -and including- the next tagged
-          # release (say. 1.1.0).
-          # No tools added before 1.0.0 will be included in those indexes.
-          #
-          # Only releases and version dirs up to <max_ver> are considered, so
+          # Only tags and version dirs up to <max_ver> are considered, so
           # archive indexes get the same tools a current index had back then.
           build_index() {
             local branch_dir=$1 owner=$2 short_repo=$3 name=$4 max_ver=$5
             shift 5
-            local ver version_dir include include_previous
+            local ver version_dir tag lower=""
+            local min_ver=$(version_min "$@")
             local out_dir="package_index/${name}/${owner}"
 
             mkdir -p "${out_dir}/platforms" "${out_dir}/tools"
@@ -148,45 +149,23 @@ jobs:
               done)
             fi
 
-            local last_release="" prev_release=""
+            # Greatest tag strictly below min_ver (empty: include all tools)
             local tag_file="${branch_dir}tagged-versions"
             if [ -f "$tag_file" ]; then
-              local tags=$(while read -r tag; do
-                [ -n "$tag" ] && version_gte "$max_ver" "$tag" && echo "$tag"
-              done < "$tag_file")
-              if [ -n "$tags" ]; then
-                last_release=$(printf '%s\n' "$tags" | tail -1)
-                prev_release=$(printf '%s\n' "$tags" | tail -2 | head -1)  # same as last if only one entry
-              fi
+              while read -r tag; do
+                [ -n "$tag" ] && version_gt "$min_ver" "$tag" || continue
+                if [ -z "$lower" ] || version_gt "$tag" "$lower"; then lower=$tag; fi
+              done < "$tag_file"
             fi
-            if [ "$last_release" == "$prev_release" ]; then
-              # zero or one unique entries in the file - include all tools
-              # last_release may be empty if the file is empty
-              prev_release="0.0.0"
-            fi
+            echo "Including tools from version dirs in (${lower:-none}, ${max_ver}]"
 
-            if [ "$max_ver" == "$last_release" ]; then
-              # this is a release run: include the last release's tools and all newer ones
-              include_previous=true
-            else
-              # newer dirs exist beyond the last tag: this is a pre-release run
-              # exclude the last release's tools
-              include_previous=false
-            fi
-
+            # Scan all the branch's version dirs: a needed tool may have been
+            # added in a dir whose platforms are not part of this index.
             for ver in ${versions}; do
-              if version_gt "$ver" "$max_ver"; then continue; fi
+              version_gt "$ver" "$max_ver" && continue
+              [ -n "$lower" ] && ! version_gt "$ver" "$lower" && continue
               version_dir="${branch_dir}${ver}/"
-              [ -n "$(ls "${version_dir}tools/"*.json 2>/dev/null)" ] || continue
-
-              if $include_previous && version_gte "$ver" "$prev_release"; then
-                include=true
-              elif ! $include_previous && version_gt "$ver" "$last_release"; then
-                include=true
-              else
-                include=false
-              fi
-              $include && cp "${version_dir}tools/"*.json "${out_dir}/tools/" 2>/dev/null || true
+              cp "${version_dir}tools/"*.json "${out_dir}/tools/" 2>/dev/null || true
             done
 
             # Generate the final index, flag errors
